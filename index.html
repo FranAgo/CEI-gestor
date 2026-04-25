@@ -115,6 +115,7 @@
       <select class="filter-input" id="filterProject" onchange="renderAll()" style="max-width:190px;"><option value="">Todos los proyectos</option></select>
       <select class="filter-input" id="filterPriority" onchange="renderAll()" style="max-width:155px;"><option value="">Toda prioridad</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
       <select class="filter-input" id="filterAssignee" onchange="renderAll()" style="max-width:170px;"><option value="">Cualquier responsable</option></select>
+      <select class="filter-input" id="filterSort" onchange="renderAll()" style="max-width:160px;"><option value="newest">Más reciente</option><option value="oldest">Más antigua</option></select>
     </div>
     <div class="stats-row" id="statsRow" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card highlight"><div class="stat-label">Tareas activas</div><div class="stat-value" id="statActivas">0</div><div class="stat-icon">⚡</div></div>
@@ -123,7 +124,7 @@
     </div>
     <div class="content">
       <div id="viewBoard"><div class="board" id="kanbanBoard"></div></div>
-      <div id="viewList" class="hidden"><div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Proyecto</th><th>Estado</th><th>Prioridad</th><th>Responsable</th><th>Vencimiento</th></tr></thead><tbody id="listBody"></tbody></table></div></div>
+      <div id="viewList" class="hidden"><div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Proyecto</th><th>Estado</th><th>Prioridad</th><th>Responsable</th><th>Vencimiento</th><th>Creación</th></tr></thead><tbody id="listBody"></tbody></table></div></div>
       <div id="viewProjects" class="hidden"><div class="projects-grid" id="projectsGrid"></div></div>
       <div id="viewTrabados" class="hidden"><div id="trabadosContent"></div></div>
     </div>
@@ -143,7 +144,7 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Prioridad</label><select class="select" id="tPriority"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></select></div>
-        <div class="form-group"><label class="form-label">Responsable</label><input class="input" id="tAssignee" placeholder="Nombre"></div>
+        <div class="form-group"><label class="form-label">Responsable *</label><input class="input" id="tAssignee" placeholder="Nombre"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Fecha límite</label><input class="input" type="date" id="tDue"></div>
