@@ -246,6 +246,9 @@ td.task-name-cell:hover { color: var(--accent); }
   .topbar,.filters-bar,.stats-row,.content { padding-left: 20px; padding-right: 20px; }
 }
 
+/* ---- Stat card alerta (vencidas) ---- */
+.stat-card .stat-value { color: var(--stat-alert, var(--accent)); transition: color .2s; }
+
 /* ---- Multi-select de miembros ---- */
 .multiselect-wrap { position: relative; }
 .multiselect-trigger {

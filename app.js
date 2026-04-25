@@ -223,21 +223,43 @@ function updateFilters(){ updateProjectSelect(); updateAssigneeSelect(); }
 function updateStats(){
   const t=getTasks();
   const p=getProjects();
-  if(currentView==='projects'){
-    // stat 1: proyectos activos (no trabado, no completado)
-    const card1=document.querySelector('#statsRow .stat-card:nth-child(1)');
-    const card2=document.querySelector('#statsRow .stat-card:nth-child(2)');
-    const card3=document.querySelector('#statsRow .stat-card:nth-child(3)');
-    if(card1){card1.querySelector('.stat-label').textContent='Proyectos activos';card1.querySelector('.stat-value').textContent=p.filter(x=>!x.trabado&&x.status!=='completado').length;card1.querySelector('.stat-icon').textContent='◈';}
-    if(card2){card2.querySelector('.stat-label').textContent='Completados';card2.querySelector('.stat-value').textContent=p.filter(x=>x.status==='completado').length;card2.querySelector('.stat-icon').textContent='✓';}
-    if(card3){card3.querySelector('.stat-label').textContent='Trabados';card3.querySelector('.stat-value').textContent=p.filter(x=>x.trabado).length;card3.querySelector('.stat-icon').textContent='⏸';}
-  } else {
-    const card1=document.querySelector('#statsRow .stat-card:nth-child(1)');
-    const card2=document.querySelector('#statsRow .stat-card:nth-child(2)');
-    const card3=document.querySelector('#statsRow .stat-card:nth-child(3)');
-    if(card1){card1.querySelector('.stat-label').textContent='Tareas activas';card1.querySelector('.stat-value').textContent=t.filter(x=>x.status==='en-progreso'||x.status==='pendiente').length;card1.querySelector('.stat-icon').textContent='⚡';}
-    if(card2){card2.querySelector('.stat-label').textContent='Completadas';card2.querySelector('.stat-value').textContent=t.filter(x=>x.status==='completado').length;card2.querySelector('.stat-icon').textContent='✓';}
-    if(card3){card3.querySelector('.stat-label').textContent='Proyectos activos';card3.querySelector('.stat-value').textContent=p.filter(x=>!x.trabado&&x.status!=='completado').length;card3.querySelector('.stat-icon').textContent='◈';}
+  const today=new Date().toISOString().slice(0,10);
+  const trabadoIds=new Set(p.filter(x=>x.trabado).map(x=>x.id));
+
+  const card1=document.querySelector('#statsRow .stat-card:nth-child(1)');
+  const card2=document.querySelector('#statsRow .stat-card:nth-child(2)');
+  const card3=document.querySelector('#statsRow .stat-card:nth-child(3)');
+  if(!card1||!card2||!card3) return;
+
+  function setCard(card,label,value,icon,highlight){
+    card.querySelector('.stat-label').textContent=label;
+    card.querySelector('.stat-value').textContent=value;
+    card.querySelector('.stat-icon').textContent=icon;
+    card.classList.toggle('highlight', !!highlight);
+  }
+
+  if(currentView==='board'){
+    setCard(card1,'Tareas activas',t.filter(x=>!trabadoIds.has(x.projectId)&&(x.status==='en-progreso'||x.status==='pendiente')).length,'⚡',true);
+    setCard(card2,'En revisión',t.filter(x=>!trabadoIds.has(x.projectId)&&x.status==='revision').length,'◎');
+    setCard(card3,'Completadas',t.filter(x=>x.status==='completado').length,'✓');
+  } else if(currentView==='list'){
+    const visible=t.filter(x=>!trabadoIds.has(x.projectId));
+    const vencidas=visible.filter(x=>x.due&&x.due<today&&x.status!=='completado');
+    setCard(card1,'Total tareas',visible.length,'≡',true);
+    setCard(card2,'Vencidas',vencidas.length,'⚠',vencidas.length>0);
+    setCard(card3,'Completadas',visible.filter(x=>x.status==='completado').length,'✓');
+    // colorear card de vencidas en rojo si hay alguna
+    card2.style.setProperty('--stat-alert', vencidas.length>0?'var(--red)':'');
+  } else if(currentView==='projects'){
+    setCard(card1,'Proyectos activos',p.filter(x=>!x.trabado&&x.status!=='completado').length,'◈',true);
+    setCard(card2,'Completados',p.filter(x=>x.status==='completado').length,'✓');
+    setCard(card3,'Trabados',p.filter(x=>x.trabado).length,'⏸');
+  } else if(currentView==='trabados'){
+    const trabados=p.filter(x=>x.trabado);
+    const tareasParadas=t.filter(x=>trabadoIds.has(x.projectId));
+    setCard(card1,'Proyectos trabados',trabados.length,'⏸',trabados.length>0);
+    setCard(card2,'Tareas pausadas',tareasParadas.length,'○');
+    setCard(card3,'Proyectos activos',p.filter(x=>!x.trabado&&x.status!=='completado').length,'◈');
   }
 }
 
