@@ -419,7 +419,7 @@ function openProjectDetail(projId){
 }
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
 function statusLabel(s){return{pendiente:'Pendiente','en-progreso':'En progreso',revision:'En revisión',completado:'Completado',trabada:'Trabada'}[s]||s;}
-function fmtDate(d){if(!d) return'';const[y,m,day]=d.split('-');return`${day}/${m}/${y}`;}
+function fmtDate(d){if(!d) return'';const[y,m,day]=d.slice(0,10).split('-');return`${day}/${m}/${y}`;}
 function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 let toastTimer;
 function showToast(msg,type='success'){document.querySelector('.toast')?.remove();const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;document.body.appendChild(t);clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.remove(),2800);}
