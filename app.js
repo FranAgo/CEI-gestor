@@ -601,22 +601,20 @@ window.addEventListener('DOMContentLoaded',async()=>{
 });
 
 /* ---- Tooltip de miembros ---- */
-document.addEventListener('DOMContentLoaded', () => {
-  document.body.addEventListener('mouseover', e => {
-    const dot = e.target.closest('[data-tip]');
-    if(!dot) return;
-    let tip = dot.querySelector('.member-tooltip');
-    if(!tip){ tip = document.createElement('span'); tip.className='member-tooltip'; dot.appendChild(tip); }
-    tip.textContent = dot.dataset.tip;
-    const r = dot.getBoundingClientRect();
-    tip.style.top = (r.top + r.height/2 - 12) + 'px';
-    tip.style.left = (r.right + 8) + 'px';
-    tip.style.opacity = '1';
-  });
-  document.body.addEventListener('mouseout', e => {
-    const dot = e.target.closest('[data-tip]');
-    if(!dot) return;
-    const tip = dot.querySelector('.member-tooltip');
-    if(tip) tip.style.opacity = '0';
-  });
+document.body.addEventListener('mouseover', e => {
+  const dot = e.target.closest('[data-tip]');
+  if(!dot) return;
+  let tip = dot.querySelector('.member-tooltip');
+  if(!tip){ tip = document.createElement('span'); tip.className='member-tooltip'; dot.appendChild(tip); }
+  tip.textContent = dot.dataset.tip;
+  const r = dot.getBoundingClientRect();
+  tip.style.top = (r.top + r.height/2 - 12) + 'px';
+  tip.style.left = (r.right + 8) + 'px';
+  tip.style.opacity = '1';
+});
+document.body.addEventListener('mouseout', e => {
+  const dot = e.target.closest('[data-tip]');
+  if(!dot) return;
+  const tip = dot.querySelector('.member-tooltip');
+  if(tip) tip.style.opacity = '0';
 });
