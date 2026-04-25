@@ -222,9 +222,23 @@ function updateAssigneeSelect(){
 function updateFilters(){ updateProjectSelect(); updateAssigneeSelect(); }
 function updateStats(){
   const t=getTasks();
-  document.getElementById('statActivas').textContent=t.filter(x=>x.status==='en-progreso'||x.status==='pendiente').length;
-  document.getElementById('statCompletadas').textContent=t.filter(x=>x.status==='completado').length;
-  document.getElementById('statProyectos').textContent=getProjects().filter(p=>!p.trabado).length;
+  const p=getProjects();
+  if(currentView==='projects'){
+    // stat 1: proyectos activos (no trabado, no completado)
+    const card1=document.querySelector('#statsRow .stat-card:nth-child(1)');
+    const card2=document.querySelector('#statsRow .stat-card:nth-child(2)');
+    const card3=document.querySelector('#statsRow .stat-card:nth-child(3)');
+    if(card1){card1.querySelector('.stat-label').textContent='Proyectos activos';card1.querySelector('.stat-value').textContent=p.filter(x=>!x.trabado&&x.status!=='completado').length;card1.querySelector('.stat-icon').textContent='◈';}
+    if(card2){card2.querySelector('.stat-label').textContent='Completados';card2.querySelector('.stat-value').textContent=p.filter(x=>x.status==='completado').length;card2.querySelector('.stat-icon').textContent='✓';}
+    if(card3){card3.querySelector('.stat-label').textContent='Trabados';card3.querySelector('.stat-value').textContent=p.filter(x=>x.trabado).length;card3.querySelector('.stat-icon').textContent='⏸';}
+  } else {
+    const card1=document.querySelector('#statsRow .stat-card:nth-child(1)');
+    const card2=document.querySelector('#statsRow .stat-card:nth-child(2)');
+    const card3=document.querySelector('#statsRow .stat-card:nth-child(3)');
+    if(card1){card1.querySelector('.stat-label').textContent='Tareas activas';card1.querySelector('.stat-value').textContent=t.filter(x=>x.status==='en-progreso'||x.status==='pendiente').length;card1.querySelector('.stat-icon').textContent='⚡';}
+    if(card2){card2.querySelector('.stat-label').textContent='Completadas';card2.querySelector('.stat-value').textContent=t.filter(x=>x.status==='completado').length;card2.querySelector('.stat-icon').textContent='✓';}
+    if(card3){card3.querySelector('.stat-label').textContent='Proyectos activos';card3.querySelector('.stat-value').textContent=p.filter(x=>!x.trabado&&x.status!=='completado').length;card3.querySelector('.stat-icon').textContent='◈';}
+  }
 }
 
 function renderBoard(){
@@ -316,7 +330,7 @@ function renderProjects(){
         <div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
-        <div style="font-size:10px;color:var(--text4);font-family:var(--mono)">${isCompleted&&p.completedAt?`✓ completado ${p.completedAt.slice(0,10)}`:p.createdAt?`creado ${p.createdAt.slice(0,10)}`:''}</div>
+        <div style="font-size:10px;color:var(--text4);font-family:var(--mono)">${isCompleted&&p.completedAt?`✓ completado ${p.completedAt.includes('T')?new Date(p.completedAt).toLocaleDateString('es-AR'):p.completedAt.slice(0,10)}`:p.createdAt?`creado ${p.createdAt.includes('T')?new Date(p.createdAt).toLocaleDateString('es-AR'):p.createdAt.slice(0,10)}`:''}</div>
         ${completedBtn}
       </div>
     </div>`;
