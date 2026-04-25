@@ -251,7 +251,7 @@ function taskCardHTML(t,projects){
       ${t.assignee?`<div class="assignee-dot">${ini}</div>`:''}
     </div>
     ${t.due?`<div class="task-date ${overdue?'overdue':''}">📅 ${fmtDate(t.due)}${overdue?' · vencida':''}</div>`:''}
-    ${t.createdAt?`<div style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-top:4px">creada ${t.createdAt.includes('T')?new Date(t.createdAt).toLocaleDateString('es-AR'):t.createdAt.slice(0,10)}</div>`:''}
+    ${t.status==='completado'&&t.completedAt?`<div style="font-size:10px;color:var(--accent);font-family:var(--mono);margin-top:4px">✓ completada ${t.completedAt.slice(0,10)}</div>`:t.createdAt?`<div style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-top:4px">creada ${t.createdAt.includes('T')?new Date(t.createdAt).toLocaleDateString('es-AR'):t.createdAt.slice(0,10)}</div>`:''}
   </div>`;
 }
 
@@ -267,18 +267,59 @@ function renderList(){
   }).join('');
 }
 
+function toggleProjectStatus(projId,e){
+  e.stopPropagation();
+  if(currentUser?.rol!=='Editor') return;
+  const projects=getProjects();
+  const idx=projects.findIndex(p=>p.id===projId);
+  if(idx===-1) return;
+  const wasCompleted=projects[idx].status==='completado';
+  projects[idx].status=wasCompleted?'activo':'completado';
+  if(!wasCompleted&&!projects[idx].completedAt) projects[idx].completedAt=nowAR();
+  else if(wasCompleted) projects[idx].completedAt='';
+  saveProjects(projects);
+  api('saveProyecto',{proyecto:projects[idx]}).then(r=>{if(!r?.ok)showToast(r?.error||'Error guardando proyecto','error');}).catch(()=>showToast('Error de conexión','error'));
+  renderAll();
+}
+
 function renderProjects(){
   const allProjects=getProjects(),tasks=getTasks(),grid=document.getElementById('projectsGrid');
   const search=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   const projects=allProjects.filter(p=>!p.trabado&&(!search||p.name.toLowerCase().includes(search)||(p.description||'').toLowerCase().includes(search)||(p.type||'').toLowerCase().includes(search)||(p.owner||'').toLowerCase().includes(search)));
   if(!projects.length){grid.innerHTML=`<div class="empty"><div class="empty-icon">◈</div>${search?'Sin resultados para "'+search+'"':'No hay proyectos activos'}</div>`;return;}
+  const today=new Date().toISOString().slice(0,10);
   grid.innerHTML=projects.map(p=>{
     const pt=tasks.filter(t=>t.projectId===p.id);
     const done=pt.filter(t=>t.status==='completado').length;
     const pct=pt.length?Math.round(done/pt.length*100):0;
     const members=(p.members||'').split(',').map(s=>s.trim()).filter(Boolean);
     const col=TYPE_COLORS[p.type]||TYPE_COLORS.otro;
-    return `<div class="project-card" onclick="openProjectDetail('${p.id}')"><div class="project-card-header"><div class="project-name">${esc(p.name)}</div><div class="project-type-badge" style="background:${col.bg};color:${col.color}">${p.type}</div></div>${p.description?`<div class="project-desc">${esc(p.description).slice(0,100)}${p.description.length>100?'…':''}</div>`:''}<div class="project-progress"><div class="progress-label"><span>Progreso</span><span>${done}/${pt.length} tareas · ${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div><div class="project-footer"><div class="project-members">${members.slice(0,4).map(m=>`<div class="member-dot">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}${members.length>4?`<div class="member-dot">+${members.length-4}</div>`:''}</div><div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''}</div></div>${p.createdAt?`<div style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-top:8px">creado ${p.createdAt.slice(0,10)}</div>`:''}</div>`;
+    const isCompleted=p.status==='completado';
+    const isOverdue=p.end&&p.end<today&&!isCompleted;
+    const cardStyle=isCompleted?'opacity:0.55;':'';
+    const completedBtn=currentUser?.rol==='Editor'
+      ?`<button class="btn" style="font-size:11px;padding:3px 10px;margin-top:8px;${isCompleted?'color:var(--accent);border-color:var(--accent)':''}" onclick="toggleProjectStatus('${p.id}',event)">${isCompleted?'↩ Reactivar':'✓ Completar'}</button>`
+      :'';
+    return `<div class="project-card" style="${cardStyle}" onclick="openProjectDetail('${p.id}')">
+      <div class="project-card-header">
+        <div class="project-name">${esc(p.name)}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          ${isOverdue?`<span style="font-size:10px;padding:2px 7px;background:var(--red-bg);color:var(--red);border-radius:5px;font-family:var(--mono);border:1px solid rgba(217,79,79,0.2)">vencido</span>`:''}
+          ${isCompleted?`<span style="font-size:10px;padding:2px 7px;background:var(--accent-bg2);color:var(--accent-dark);border-radius:5px;font-family:var(--mono);border:1px solid var(--border2)">✓ completado</span>`:''}
+          <div class="project-type-badge" style="background:${col.bg};color:${col.color}">${p.type}</div>
+        </div>
+      </div>
+      ${p.description?`<div class="project-desc">${esc(p.description).slice(0,100)}${p.description.length>100?'…':''}</div>`:''}
+      <div class="project-progress"><div class="progress-label"><span>Progreso</span><span>${done}/${pt.length} tareas · ${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+      <div class="project-footer">
+        <div class="project-members">${members.slice(0,4).map(m=>`<div class="member-dot">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}${members.length>4?`<div class="member-dot">+${members.length-4}</div>`:''}</div>
+        <div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''}</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+        <div style="font-size:10px;color:var(--text4);font-family:var(--mono)">${isCompleted&&p.completedAt?`✓ completado ${p.completedAt.slice(0,10)}`:p.createdAt?`creado ${p.createdAt.slice(0,10)}`:''}</div>
+        ${completedBtn}
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -416,7 +457,7 @@ async function saveProject(){
     const trabado=document.getElementById('pTrabado').checked;
     const projects=getProjects();
     const existing=editingProjectId?projects.find(p=>p.id===editingProjectId):null;
-    const project={id:editingProjectId||uid(),name,description:document.getElementById('pDesc').value.trim(),type:document.getElementById('pType').value,owner,start:document.getElementById('pStart').value,end:document.getElementById('pEnd').value,members:document.getElementById('pMembers').value.trim(),trabado,motivo:trabado?document.getElementById('pMotivo').value.trim():'',createdAt:existing?.createdAt||nowAR()};
+    const project={id:editingProjectId||uid(),name,description:document.getElementById('pDesc').value.trim(),type:document.getElementById('pType').value,owner,start:document.getElementById('pStart').value,end:document.getElementById('pEnd').value,members:document.getElementById('pMembers').value.trim(),trabado,motivo:trabado?document.getElementById('pMotivo').value.trim():'',status:existing?.status||'activo',completedAt:existing?.completedAt||'',createdAt:existing?.createdAt||nowAR()};
     const msgProyecto=editingProjectId?'Proyecto actualizado':'Proyecto creado';
     if(editingProjectId){projects[projects.findIndex(p=>p.id===editingProjectId)]=project;}
     else{projects.push(project);}
@@ -434,13 +475,16 @@ function openDetail(taskId){
   const proj=getProjects().find(p=>p.id===t.projectId);
   const today=new Date().toISOString().slice(0,10);
   const overdue=t.due&&t.due<today&&t.status!=='completado';
-  document.getElementById('detailContent').innerHTML=`<div class="task-detail"><div><div class="detail-title">${esc(t.title)}</div>${(()=>{if(currentUser?.rol==='Editor')return`<div style="margin-top:8px"><select class="select" style="font-size:12px;padding:3px 8px" onchange="changeTaskProject('${t.id}',this.value)"><option value="">Sin proyecto</option>${getProjects().map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`;return proj?`<div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:4px">◈ ${esc(proj.name)}</div>`:'';})()}</div>${t.description?`<div><div class="detail-label">descripción</div><div style="font-size:13px;line-height:1.6;color:var(--text2);background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${esc(t.description)}</div></div>`:''}<div><div class="detail-label">estado</div><div class="status-row">${['pendiente','en-progreso','revision','completado','trabada'].map(s=>`<button class="status-opt ${t.status===s?'selected':''}" data-val="${s}" onclick="changeStatus('${t.id}','${s}')">${statusLabel(s)}</button>`).join('')}</div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;"><div><div class="detail-label">prioridad</div><span class="status-badge p-${t.priority}">${t.priority}</span></div><div><div class="detail-label">responsable</div><span style="font-size:13px;font-weight:500">${t.assignee?esc(t.assignee):'—'}</span></div><div><div class="detail-label">vencimiento</div><span style="font-size:13px;font-weight:500;${overdue?'color:var(--red)':''}">${t.due?fmtDate(t.due)+(overdue?' · vencida':''):'—'}</span></div></div>${t.tags?`<div><div class="detail-label">etiquetas</div><div style="display:flex;gap:6px;flex-wrap:wrap">${t.tags.split(',').map((tag,i)=>`<span class="tag ${TAG_CLASSES[i%TAG_CLASSES.length]}">${esc(tag.trim())}</span>`).join('')}</div></div>`:''  }${t.notes?`<div><div class="detail-label">notas internas</div><div style="font-size:12px;color:var(--text2);background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border);font-family:var(--mono);line-height:1.6">${esc(t.notes)}</div></div>`:''}<div style="font-size:11px;color:var(--text4);font-family:var(--mono);padding-top:4px">creada por ${esc(t.createdByName||((_usuarios.find(x=>x.usuario===t.createdBy)||{}).nombre_apellido)||t.createdBy||'?')} · ${t.createdAt?(t.createdAt.includes('T')?new Date(t.createdAt).toLocaleDateString('es-AR'):t.createdAt.slice(0,10)):''}</div></div>`;
+  document.getElementById('detailContent').innerHTML=`<div class="task-detail"><div><div class="detail-title">${esc(t.title)}</div>${(()=>{if(currentUser?.rol==='Editor')return`<div style="margin-top:8px"><select class="select" style="font-size:12px;padding:3px 8px" onchange="changeTaskProject('${t.id}',this.value)"><option value="">Sin proyecto</option>${getProjects().map(p=>`<option value="${p.id}"${p.id===t.projectId?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`;return proj?`<div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:4px">◈ ${esc(proj.name)}</div>`:'';})()}</div>${t.description?`<div><div class="detail-label">descripción</div><div style="font-size:13px;line-height:1.6;color:var(--text2);background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${esc(t.description)}</div></div>`:''}<div><div class="detail-label">estado</div><div class="status-row">${['pendiente','en-progreso','revision','completado','trabada'].map(s=>`<button class="status-opt ${t.status===s?'selected':''}" data-val="${s}" onclick="changeStatus('${t.id}','${s}')">${statusLabel(s)}</button>`).join('')}</div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;"><div><div class="detail-label">prioridad</div><span class="status-badge p-${t.priority}">${t.priority}</span></div><div><div class="detail-label">responsable</div><span style="font-size:13px;font-weight:500">${t.assignee?esc(t.assignee):'—'}</span></div><div><div class="detail-label">vencimiento</div><span style="font-size:13px;font-weight:500;${overdue?'color:var(--red)':''}">${t.due?fmtDate(t.due)+(overdue?' · vencida':''):'—'}</span></div></div>${t.tags?`<div><div class="detail-label">etiquetas</div><div style="display:flex;gap:6px;flex-wrap:wrap">${t.tags.split(',').map((tag,i)=>`<span class="tag ${TAG_CLASSES[i%TAG_CLASSES.length]}">${esc(tag.trim())}</span>`).join('')}</div></div>`:''  }${t.notes?`<div><div class="detail-label">notas internas</div><div style="font-size:12px;color:var(--text2);background:var(--surface2);padding:12px;border-radius:var(--radius);border:1px solid var(--border);font-family:var(--mono);line-height:1.6">${esc(t.notes)}</div></div>`:''}<div style="font-size:11px;color:var(--text4);font-family:var(--mono);padding-top:4px">creada por ${esc(t.createdByName||((_usuarios.find(x=>x.usuario===t.createdBy)||{}).nombre_apellido)||t.createdBy||'?')} · ${t.createdAt?(t.createdAt.includes('T')?new Date(t.createdAt).toLocaleDateString('es-AR'):t.createdAt.slice(0,10)):''}${t.completedAt?` · <span style="color:var(--accent)">✓ completada ${t.completedAt.slice(0,10)}</span>`:''}</div></div>`;
   document.getElementById('detailFooter').innerHTML=currentUser?.rol==='Editor'?`<button class="btn btn-danger" onclick="deleteTask('${t.id}')">Eliminar</button><button class="btn btn-ghost" onclick="closeModal('detailModal')">Cerrar</button><button class="btn btn-primary" onclick="closeModal('detailModal');openEditTaskModal('${t.id}')">Editar tarea</button>`:`<button class="btn btn-ghost" onclick="closeModal('detailModal')">Cerrar</button>`;
   document.getElementById('detailModal').classList.remove('hidden');
 }
 function changeStatus(taskId,status){
   let tasks=getTasks();const idx=tasks.findIndex(t=>t.id===taskId);if(idx===-1) return;
-  tasks[idx].status=status;saveTasks(tasks);api('saveTarea',{tarea:tasks[idx]}).then(r=>{if(!r?.ok)showToast(r?.error||'Error guardando estado','error');}).catch(()=>showToast('Error de conexión','error'));openDetail(taskId);renderAll();
+  tasks[idx].status=status;
+  if(status==='completado'&&!tasks[idx].completedAt) tasks[idx].completedAt=nowAR();
+  else if(status!=='completado') tasks[idx].completedAt='';
+  saveTasks(tasks);api('saveTarea',{tarea:tasks[idx]}).then(r=>{if(!r?.ok)showToast(r?.error||'Error guardando estado','error');}).catch(()=>showToast('Error de conexión','error'));openDetail(taskId);renderAll();
 }
 function changeTaskProject(taskId,projectId){
   let tasks=getTasks();const idx=tasks.findIndex(t=>t.id===taskId);if(idx===-1) return;
