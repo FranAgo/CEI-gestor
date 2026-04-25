@@ -250,10 +250,7 @@ td.task-name-cell:hover { color: var(--accent); }
 .stat-card .stat-value { color: var(--stat-alert, var(--accent)); transition: color .2s; }
 
 /* ---- Tooltip en avatares de miembros ---- */
-.member-dot {
-  position: relative;
-}
-.member-dot .member-tooltip {
+.member-tooltip {
   position: fixed;
   background: var(--sidebar-bg);
   color: var(--green-200);
@@ -268,9 +265,6 @@ td.task-name-cell:hover { color: var(--accent); }
   z-index: 9999;
   border: 1px solid rgba(255,255,255,0.12);
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.member-dot:hover .member-tooltip {
-  opacity: 1;
 }
 
 /* ---- Multi-select de miembros ---- */

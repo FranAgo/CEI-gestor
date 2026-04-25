@@ -23,24 +23,7 @@ async function loadData(){
 }
 
 /* ---- Multi-select de miembros ---- */
-/* ---- Tooltip de miembros (delegado) ---- */
-document.addEventListener('mouseover', e => {
-  const dot = e.target.closest('.member-dot[data-tip]');
-  if(!dot) return;
-  const tip = dot.querySelector('.member-tooltip');
-  if(!tip) return;
-  tip.textContent = dot.dataset.tip;
-  const r = dot.getBoundingClientRect();
-  tip.style.top = (r.top + r.height/2 - 12) + 'px';
-  tip.style.left = (r.right + 8) + 'px';
-  tip.style.opacity = '1';
-});
-document.addEventListener('mouseout', e => {
-  const dot = e.target.closest('.member-dot[data-tip]');
-  if(!dot) return;
-  const tip = dot.querySelector('.member-tooltip');
-  if(tip) tip.style.opacity = '0';
-});
+/* tooltip de miembros: ver initMemberTooltips() al final */
 
 function toggleMembersDropdown(){
   const dd=document.getElementById('pMembersDropdown');
@@ -615,4 +598,25 @@ window.addEventListener('DOMContentLoaded',async()=>{
   }else{
     document.getElementById('loginScreen').classList.remove('hidden');
   }
+});
+
+/* ---- Tooltip de miembros ---- */
+document.addEventListener('DOMContentLoaded', () => {
+  document.body.addEventListener('mouseover', e => {
+    const dot = e.target.closest('[data-tip]');
+    if(!dot) return;
+    let tip = dot.querySelector('.member-tooltip');
+    if(!tip){ tip = document.createElement('span'); tip.className='member-tooltip'; dot.appendChild(tip); }
+    tip.textContent = dot.dataset.tip;
+    const r = dot.getBoundingClientRect();
+    tip.style.top = (r.top + window.scrollY + r.height/2 - 12) + 'px';
+    tip.style.left = (r.right + window.scrollX + 8) + 'px';
+    tip.style.opacity = '1';
+  });
+  document.body.addEventListener('mouseout', e => {
+    const dot = e.target.closest('[data-tip]');
+    if(!dot) return;
+    const tip = dot.querySelector('.member-tooltip');
+    if(tip) tip.style.opacity = '0';
+  });
 });
