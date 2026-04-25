@@ -253,12 +253,8 @@ td.task-name-cell:hover { color: var(--accent); }
 .member-dot {
   position: relative;
 }
-.member-dot::after {
-  content: attr(title);
-  position: absolute;
-  top: 50%;
-  left: calc(100% + 8px);
-  transform: translateY(-50%);
+.member-dot .member-tooltip {
+  position: fixed;
   background: var(--sidebar-bg);
   color: var(--green-200);
   font-size: 11px;
@@ -269,10 +265,11 @@ td.task-name-cell:hover { color: var(--accent); }
   pointer-events: none;
   opacity: 0;
   transition: opacity .15s;
-  z-index: 50;
-  border: 1px solid rgba(255,255,255,0.08);
+  z-index: 9999;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
-.member-dot:hover::after {
+.member-dot:hover .member-tooltip {
   opacity: 1;
 }
 
