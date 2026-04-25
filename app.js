@@ -83,6 +83,9 @@ async function doLogin(){
 }
 function applySession(){
   document.getElementById('loginScreen').classList.add('hidden');
+  // restaurar botones siempre antes de aplicar restricciones del rol
+  document.getElementById('btnNuevaTarea').classList.remove('hidden');
+  document.querySelectorAll('#topbarActions .btn').forEach(b=>b.classList.remove('hidden'));
   const displayName=currentUser.nombre_apellido||currentUser.usuario;
   const ini=displayName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('sidebarAvatar').textContent=ini;
@@ -96,7 +99,20 @@ function applySession(){
   }
   renderAll();
 }
-function logout(){localStorage.removeItem('ce_session');currentUser=null;_projects=[];_tasks=[];document.getElementById('loginScreen').classList.remove('hidden');document.getElementById('loginUsuario').value='';document.getElementById('loginPassword').value='';}
+function logout(){
+  localStorage.removeItem('ce_session');
+  currentUser=null;_projects=[];_tasks=[];_usuarios=[];
+  document.getElementById('btnNuevaTarea').classList.remove('hidden');
+  document.querySelectorAll('#topbarActions .btn').forEach(b=>b.classList.remove('hidden'));
+  document.getElementById('sidebarAvatar').textContent='?';
+  document.getElementById('sidebarName').textContent='—';
+  document.getElementById('sidebarRole').textContent='—';
+  const carrEl=document.getElementById('sidebarCarrera');
+  if(carrEl) carrEl.textContent='';
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginUsuario').value='';
+  document.getElementById('loginPassword').value='';
+}
 
 function switchView(view,el){
   currentView=view;
