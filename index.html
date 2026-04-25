@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CE Ingeniería UCA — Gestión de Proyectos</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen hidden" id="loadingScreen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Cargando datos...</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen hidden" id="loginScreen">
+  <div class="login-deco"></div>
+  <div class="login-box">
+    <div class="login-logo-row">
+      <div class="login-emblem"><img src="logo1.png" width="120" height="120" style="object-fit:contain;"></div>
+      <div class="login-logo-text">
+        <h2>Centro de Estudiantes</h2>
+        <p>UCA · Ingeniería</p>
+      </div>
+    </div>
+    <div class="login-subtitle">Bienvenido/a</div>
+    <div class="login-desc">Ingresá para acceder al gestor de proyectos del CEI.</div>
+    <div id="loginError" class="login-error"></div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Usuario</label>
+      <input class="input" id="loginUsuario" placeholder="tu usuario" autocomplete="username">
+    </div>
+    <div class="form-group" style="margin-bottom:20px;">
+      <label class="form-label">Contraseña</label>
+      <input class="input" type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" id="loginBtn" style="width:100%;justify-content:center;font-size:14.5px;padding:11px;" onclick="doLogin()">Ingresar al gestor →</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="appRoot">
+  <aside class="sidebar">
+    <div class="logo-area">
+      <div class="logo-emblem"><img src="logo1.png" width="58" height="58" style="object-fit:contain;"></div>
+      <div class="logo-text">
+        <h1>Centro de Estudiantes</h1>
+        <p>UCA · Ingeniería</p>
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Vistas</div>
+      <div class="nav-item nav-item-view active" onclick="switchView('board',this)">
+        <span class="nav-icon">⬚</span> Tablero Kanban
+        <span class="nav-count" id="cnt-board">0</span>
+      </div>
+      <div class="nav-item nav-item-view" onclick="switchView('list',this)">
+        <span class="nav-icon">≡</span> Lista de tareas
+        <span class="nav-count" id="cnt-list">0</span>
+      </div>
+      <div class="nav-item nav-item-view" onclick="switchView('projects',this)">
+        <span class="nav-icon">◈</span> Proyectos
+        <span class="nav-count" id="cnt-projects">0</span>
+      </div>
+      <div class="nav-item nav-item-view" onclick="switchView('trabados',this)">
+        <span class="nav-icon" style="color:#d94f4f">⏸</span> Proyectos trabados
+        <span class="nav-count" id="cnt-trabados" style="background:rgba(217,79,79,0.15);color:#d94f4f">0</span>
+      </div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">
+      <div class="nav-label">Filtrar estado</div>
+      <div class="nav-item nav-item-filter" onclick="filterByStatus('todas',this)">
+        <span class="nav-icon" style="font-size:9px;color:rgba(255,255,255,0.35)">●</span> Todas
+      </div>
+      <div class="nav-item nav-item-filter" onclick="filterByStatus('en-progreso',this)">
+        <span class="nav-icon" style="font-size:9px;color:#d97c2a">●</span> En progreso
+      </div>
+      <div class="nav-item nav-item-filter" onclick="filterByStatus('pendiente',this)">
+        <span class="nav-icon" style="font-size:9px;color:rgba(255,255,255,0.3)">●</span> Pendientes
+      </div>
+      <div class="nav-item nav-item-filter" onclick="filterByStatus('completado',this)">
+        <span class="nav-icon" style="font-size:9px;color:#78c048">●</span> Completadas
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-pill" onclick="logout()">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div style="flex:1;min-width:0;">
+          <div class="user-name" id="sidebarName">—</div>
+          <div class="user-role" id="sidebarRole">—</div>
+          <div class="user-role" id="sidebarCarrera" style="opacity:0.7;font-size:9px;"></div>
+        </div>
+        <span style="font-size:12px;color:var(--green-500)">↩</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title" id="pageTitle">Tablero</div>
+        <div class="page-sub" id="pageSub">Vista kanban · todos los proyectos</div>
+      </div>
+      <div class="topbar-actions" id="topbarActions">
+        <button class="btn" onclick="openProjectModal()">◈ Nuevo proyecto</button>
+        <button class="btn btn-primary" id="btnNuevaTarea" onclick="openTaskModal()">+ Nueva tarea</button>
+      </div>
+    </div>
+    <div class="filters-bar" id="filtersBar">
+      <input class="filter-input" type="text" id="searchInput" placeholder="🔍  Buscar tareas..." oninput="renderAll()" style="min-width:200px;">
+      <select class="filter-input" id="filterProject" onchange="renderAll()" style="max-width:190px;"><option value="">Todos los proyectos</option></select>
+      <select class="filter-input" id="filterPriority" onchange="renderAll()" style="max-width:155px;"><option value="">Toda prioridad</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
+      <select class="filter-input" id="filterAssignee" onchange="renderAll()" style="max-width:170px;"><option value="">Cualquier responsable</option></select>
+    </div>
+    <div class="stats-row" id="statsRow" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card highlight"><div class="stat-label">Tareas activas</div><div class="stat-value" id="statActivas">0</div><div class="stat-icon">⚡</div></div>
+      <div class="stat-card"><div class="stat-label">Completadas</div><div class="stat-value" id="statCompletadas">0</div><div class="stat-icon">✓</div></div>
+      <div class="stat-card"><div class="stat-label">Proyectos activos</div><div class="stat-value" id="statProyectos">0</div><div class="stat-icon">◈</div></div>
+    </div>
+    <div class="content">
+      <div id="viewBoard"><div class="board" id="kanbanBoard"></div></div>
+      <div id="viewList" class="hidden"><div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Proyecto</th><th>Estado</th><th>Prioridad</th><th>Responsable</th><th>Vencimiento</th></tr></thead><tbody id="listBody"></tbody></table></div></div>
+      <div id="viewProjects" class="hidden"><div class="projects-grid" id="projectsGrid"></div></div>
+      <div id="viewTrabados" class="hidden"><div id="trabadosContent"></div></div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL TAREA -->
+<div class="modal-overlay hidden" id="taskModal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="taskModalTitle">Nueva tarea</span><button class="modal-close" onclick="closeModal('taskModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Título *</label><input class="input" id="tTitle" placeholder="¿Qué hay que hacer?"></div>
+      <div class="form-group"><label class="form-label">Descripción</label><textarea class="textarea" id="tDesc" placeholder="Detalles, contexto, links relevantes..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Proyecto</label><select class="select" id="tProject"></select></div>
+        <div class="form-group"><label class="form-label">Estado</label><select class="select" id="tStatus"><option value="pendiente">Pendiente</option><option value="en-progreso">En progreso</option><option value="revision">En revisión</option><option value="completado">Completado</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Prioridad</label><select class="select" id="tPriority"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></select></div>
+        <div class="form-group"><label class="form-label">Responsable</label><input class="input" id="tAssignee" placeholder="Nombre"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Fecha límite</label><input class="input" type="date" id="tDue"></div>
+        <div class="form-group"><label class="form-label">Etiquetas</label><input class="input" id="tTags" placeholder="ej. reunión, diseño, urgente"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notas internas</label><textarea class="textarea" id="tNotes" placeholder="Observaciones, links, seguimiento..." style="min-height:60px;"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('taskModal')">Cancelar</button><button class="btn btn-primary" onclick="saveTask()">Guardar tarea</button></div>
+  </div>
+</div>
+
+<!-- MODAL PROYECTO -->
+<div class="modal-overlay hidden" id="projectModal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="projModalTitle">Nuevo proyecto</span><button class="modal-close" onclick="closeModal('projectModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Nombre del proyecto *</label><input class="input" id="pName" placeholder="ej. Jornadas de Ingeniería 2025"></div>
+      <div class="form-group"><label class="form-label">Descripción</label><textarea class="textarea" id="pDesc" placeholder="Objetivo, alcance, contexto..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Tipo</label><select class="select" id="pType"><option value="evento">Evento</option><option value="semanal">Proyecto semanal</option><option value="mensual">Proyecto mensual</option><option value="directivos">Comunicación con directivos</option><option value="institucional">Institucional</option><option value="interno">Interno</option><option value="otro">Otro</option></select></div>
+        <div class="form-group"><label class="form-label">Responsable principal</label><input class="input" id="pOwner" placeholder="Nombre"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Fecha inicio</label><input class="input" type="date" id="pStart"></div>
+        <div class="form-group"><label class="form-label">Fecha fin</label><input class="input" type="date" id="pEnd"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Miembros del equipo</label><input class="input" id="pMembers" placeholder="ej. Franco, Lucía, Tomás (separados por coma)"></div>
+      <div id="trabadoSection" class="hidden"><div style="height:1px;background:var(--border);margin:4px 0 8px"></div><div class="form-group"><label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="pTrabado" style="width:16px;height:16px;accent-color:var(--red);cursor:pointer" onchange="toggleMotivo()"> Marcar proyecto como trabado</label></div><div class="form-group" id="motivoGroup" style="display:none"><label class="form-label">Motivo del trabe</label><textarea class="textarea" id="pMotivo" placeholder="¿Qué está frenando este proyecto? ¿Qué se necesita para desbloquearlo?" style="min-height:60px;border-color:rgba(217,79,79,0.4);"></textarea></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-danger hidden" id="btnDeleteProject" onclick="deleteProject()">Eliminar</button><button class="btn btn-ghost" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()">Guardar proyecto</button></div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE -->
+<div class="modal-overlay hidden" id="detailModal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header"><span class="modal-title">Detalle de tarea</span><button class="modal-close" onclick="closeModal('detailModal')">✕</button></div>
+    <div id="detailContent"></div>
+    <div class="modal-footer" id="detailFooter"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
