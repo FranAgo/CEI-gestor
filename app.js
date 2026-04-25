@@ -347,8 +347,9 @@ function renderProjects(){
       </div>
       ${p.description?`<div class="project-desc">${esc(p.description).slice(0,100)}${p.description.length>100?'…':''}</div>`:''}
       <div class="project-progress"><div class="progress-label"><span>Progreso</span><span>${done}/${pt.length} tareas · ${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
-      <div class="project-footer">
-        <div class="project-members">${members.slice(0,4).map(m=>`<div class="member-dot">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}${members.length>4?`<div class="member-dot">+${members.length-4}</div>`:''}</div>
+      ${p.owner?`<div style="font-size:11px;color:var(--text3);margin-top:8px;display:flex;align-items:center;gap:5px"><span style="opacity:0.5">👤</span><span>${esc(p.owner)}</span></div>`:''}
+      <div class="project-footer" style="margin-top:${p.owner?'6px':'10px'}">
+        <div class="project-members">${members.slice(0,5).map(m=>`<div class="member-dot" title="${esc(m)}" style="cursor:default">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}${members.length>5?`<div class="member-dot" title="${members.slice(5).join(', ')}">+${members.length-5}</div>`:''}</div>
         <div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
@@ -431,7 +432,7 @@ function openEditTaskModal(id){
   document.getElementById('tDesc').value=t.description||'';
   document.getElementById('tStatus').value=t.status;
   document.getElementById('tPriority').value=t.priority;
-  document.getElementById('tDue').value=t.due||'';
+  document.getElementById('tDue').value=toInputDate(t.due);
   document.getElementById('tTags').value=t.tags||'';
   document.getElementById('tNotes').value=t.notes||'';
   updateFilters();
@@ -549,8 +550,8 @@ function openProjectDetail(projId){
   document.getElementById('pName').value=p.name;
   document.getElementById('pDesc').value=p.description||'';
   document.getElementById('pType').value=p.type;
-  document.getElementById('pStart').value=p.start||'';
-  document.getElementById('pEnd').value=p.end||'';
+  document.getElementById('pStart').value=toInputDate(p.start);
+  document.getElementById('pEnd').value=toInputDate(p.end);
   // poblar selects de usuarios
   populateUserSelects(null, p.owner||'');
   // poblar multiselect de miembros
@@ -567,6 +568,17 @@ function openProjectDetail(projId){
 }
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
 function statusLabel(s){return{pendiente:'Pendiente','en-progreso':'En progreso',revision:'En revisión',completado:'Completado',trabada:'Trabada'}[s]||s;}
+function toInputDate(val){
+  // Convierte cualquier formato de fecha a yyyy-mm-dd para input[type=date]
+  if(!val) return '';
+  const s=String(val).trim();
+  // Ya está en formato ISO yyyy-mm-dd o yyyy-mm-ddTHH...
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // Formato dd/mm/aaaa (argentino)
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return '';
+}
 function fmtDate(d){if(!d) return'';const[y,m,day]=d.slice(0,10).split('-');return`${day}/${m}/${y}`;}
 function esc(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 let toastTimer;
