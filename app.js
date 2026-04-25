@@ -23,19 +23,24 @@ async function loadData(){
 }
 
 /* ---- Multi-select de miembros ---- */
-/* ---- Tooltip de miembros ---- */
-function showMemberTip(e, name){
-  const tip = e.currentTarget.querySelector('.member-tooltip');
+/* ---- Tooltip de miembros (delegado) ---- */
+document.addEventListener('mouseover', e => {
+  const dot = e.target.closest('.member-dot[data-tip]');
+  if(!dot) return;
+  const tip = dot.querySelector('.member-tooltip');
   if(!tip) return;
-  tip.textContent = name;
-  const r = e.currentTarget.getBoundingClientRect();
+  tip.textContent = dot.dataset.tip;
+  const r = dot.getBoundingClientRect();
   tip.style.top = (r.top + r.height/2 - 12) + 'px';
   tip.style.left = (r.right + 8) + 'px';
   tip.style.opacity = '1';
-}
-function hideMemberTip(){
-  document.querySelectorAll('.member-tooltip').forEach(t=>t.style.opacity='0');
-}
+});
+document.addEventListener('mouseout', e => {
+  const dot = e.target.closest('.member-dot[data-tip]');
+  if(!dot) return;
+  const tip = dot.querySelector('.member-tooltip');
+  if(tip) tip.style.opacity = '0';
+});
 
 function toggleMembersDropdown(){
   const dd=document.getElementById('pMembersDropdown');
@@ -363,7 +368,7 @@ function renderProjects(){
       <div class="project-progress"><div class="progress-label"><span>Progreso</span><span>${done}/${pt.length} tareas · ${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
       ${p.owner?`<div style="font-size:11px;color:var(--text3);margin-top:8px;display:flex;align-items:center;gap:5px"><span style="opacity:0.5">👤</span><span>${esc(p.owner)}</span></div>`:''}
       <div class="project-footer" style="margin-top:${p.owner?'6px':'10px'}">
-        <div class="project-members">${members.slice(0,5).map(m=>`<div class="member-dot" style="cursor:default" onmouseenter="showMemberTip(event,'${esc(m)}')" onmouseleave="hideMemberTip()">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}<span class="member-tooltip"></span></div>`).join('')}${members.length>5?`<div class="member-dot" style="cursor:default" onmouseenter="showMemberTip(event,'${members.slice(5).map(x=>esc(x)).join(', ')}')" onmouseleave="hideMemberTip()">+${members.length-5}<span class="member-tooltip"></span></div>`:''}</div>
+        <div class="project-members">${members.slice(0,5).map(m=>`<div class="member-dot" data-tip="${esc(m)}" style="cursor:default">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}<span class="member-tooltip"></span></div>`).join('')}${members.length>5?`<div class="member-dot" data-tip="${members.slice(5).map(x=>esc(x)).join(', ')}" style="cursor:default">+${members.length-5}<span class="member-tooltip"></span></div>`:''}</div>
         <div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
