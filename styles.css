@@ -252,19 +252,19 @@ td.task-name-cell:hover { color: var(--accent); }
 /* ---- Tooltip en avatares de miembros ---- */
 .member-tooltip {
   position: fixed;
-  background: var(--sidebar-bg);
-  color: var(--green-200);
+  background: #1e3510;
+  color: #c8f0a0;
   font-size: 11px;
   font-family: var(--sans);
   white-space: nowrap;
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 5px;
   pointer-events: none;
   opacity: 0;
   transition: opacity .15s;
   z-index: 9999;
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.35);
 }
 
 /* ---- Multi-select de miembros ---- */
