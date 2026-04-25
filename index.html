@@ -144,7 +144,7 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Prioridad</label><select class="select" id="tPriority"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></select></div>
-        <div class="form-group"><label class="form-label">Responsable *</label><input class="input" id="tAssignee" placeholder="Nombre"></div>
+        <div class="form-group"><label class="form-label">Responsable *</label><select class="select" id="tAssignee"><option value="">— Seleccionar —</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Fecha límite</label><input class="input" type="date" id="tDue"></div>
@@ -165,13 +165,23 @@
       <div class="form-group"><label class="form-label">Descripción</label><textarea class="textarea" id="pDesc" placeholder="Objetivo, alcance, contexto..."></textarea></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Tipo</label><select class="select" id="pType"><option value="evento">Evento</option><option value="semanal">Proyecto semanal</option><option value="mensual">Proyecto mensual</option><option value="directivos">Comunicación con directivos</option><option value="institucional">Institucional</option><option value="interno">Interno</option><option value="otro">Otro</option></select></div>
-        <div class="form-group"><label class="form-label">Responsable principal</label><input class="input" id="pOwner" placeholder="Nombre"></div>
+        <div class="form-group"><label class="form-label">Responsable principal *</label><select class="select" id="pOwner"><option value="">— Seleccionar —</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Fecha inicio</label><input class="input" type="date" id="pStart"></div>
         <div class="form-group"><label class="form-label">Fecha fin</label><input class="input" type="date" id="pEnd"></div>
       </div>
-      <div class="form-group"><label class="form-label">Miembros del equipo</label><input class="input" id="pMembers" placeholder="ej. Franco, Lucía, Tomás (separados por coma)"></div>
+      <div class="form-group">
+        <label class="form-label">Miembros del equipo</label>
+        <div class="multiselect-wrap" id="pMembersWrap">
+          <div class="multiselect-trigger" id="pMembersTrigger" onclick="toggleMembersDropdown()">
+            <span class="multiselect-placeholder" id="pMembersPlaceholder">— Seleccionar miembros —</span>
+            <span class="multiselect-arrow">▾</span>
+          </div>
+          <div class="multiselect-dropdown hidden" id="pMembersDropdown"></div>
+        </div>
+        <input type="hidden" id="pMembers">
+      </div>
       <div id="trabadoSection" class="hidden"><div style="height:1px;background:var(--border);margin:4px 0 8px"></div><div class="form-group"><label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" id="pTrabado" style="width:16px;height:16px;accent-color:var(--red);cursor:pointer" onchange="toggleMotivo()"> Marcar proyecto como trabado</label></div><div class="form-group" id="motivoGroup" style="display:none"><label class="form-label">Motivo del trabe</label><textarea class="textarea" id="pMotivo" placeholder="¿Qué está frenando este proyecto? ¿Qué se necesita para desbloquearlo?" style="min-height:60px;border-color:rgba(217,79,79,0.4);"></textarea></div></div>
     </div>
     <div class="modal-footer"><button class="btn btn-danger hidden" id="btnDeleteProject" onclick="deleteProject()">Eliminar</button><button class="btn btn-ghost" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()">Guardar proyecto</button></div>

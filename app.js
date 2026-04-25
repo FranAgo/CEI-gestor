@@ -1,6 +1,6 @@
 const ENDPOINT='https://script.google.com/macros/s/AKfycbyhhWXTyIM-KmUyvP0F0GRNEXhXgJgzmcAMaOCddvMAxLTV0n8Md8HkBMeizgu1yiZv/exec';
 let currentUser=null, currentView='board', editingTaskId=null, editingProjectId=null, statusFilter='todas';
-let _projects=[], _tasks=[];
+let _projects=[], _tasks=[], _usuarios=[];
 let _saving=false;
 const COL_CONFIG=[{id:'pendiente',label:'Pendiente',color:'#a8cc88'},{id:'en-progreso',label:'En progreso',color:'#d97c2a'},{id:'revision',label:'En revisión',color:'#8b4ed9'},{id:'completado',label:'Completado',color:'#5a9a32'}];
 const TYPE_COLORS={evento:{bg:'var(--pur-bg)',color:'var(--purple)'},semanal:{bg:'var(--blue-bg)',color:'var(--blue)'},mensual:{bg:'var(--org-bg)',color:'var(--orange)'},directivos:{bg:'var(--red-bg)',color:'var(--red)'},institucional:{bg:'var(--accent-bg2)',color:'var(--accent-dark)'},interno:{bg:'var(--teal-bg)',color:'var(--teal)'},otro:{bg:'var(--surface2)',color:'var(--text3)'}};
@@ -16,10 +16,41 @@ function saveTasks(t){_tasks=[...t];}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function nowAR(){const d=new Date();d.setHours(d.getHours()-3);const[date,time]=d.toISOString().slice(0,19).split('T');const[y,m,day]=date.split('-');return`${day}/${m}/${y} ${time}`;}
 async function loadData(){
-  const[p,t]=await Promise.all([api('getProyectos'),api('getTareas')]);
+  const[p,t,u]=await Promise.all([api('getProyectos'),api('getTareas'),api('getUsuarios')]);
   _projects=Array.isArray(p?.proyectos)?p.proyectos:[];
   _tasks=Array.isArray(t?.tareas)?t.tareas:[];
+  _usuarios=Array.isArray(u?.usuarios)?u.usuarios:[];
 }
+
+/* ---- Multi-select de miembros ---- */
+function toggleMembersDropdown(){
+  const dd=document.getElementById('pMembersDropdown');
+  if(!dd) return;
+  dd.classList.toggle('hidden');
+}
+function buildMembersDropdown(selectedArr){
+  const dd=document.getElementById('pMembersDropdown');
+  if(!dd) return;
+  dd.innerHTML=_usuarios.map(u=>{
+    const checked=selectedArr.includes(u.nombre_apellido);
+    return `<label class="multiselect-option"><input type="checkbox" value="${esc(u.nombre_apellido)}" ${checked?'checked':''} onchange="syncMembersValue()"> ${esc(u.nombre_apellido)}</label>`;
+  }).join('');
+}
+function syncMembersValue(){
+  const checks=[...document.querySelectorAll('#pMembersDropdown input[type=checkbox]:checked')];
+  const vals=checks.map(c=>c.value);
+  document.getElementById('pMembers').value=vals.join(', ');
+  const ph=document.getElementById('pMembersPlaceholder');
+  ph.textContent=vals.length?vals.join(', '):'— Seleccionar miembros —';
+  ph.style.color=vals.length?'var(--text1)':'';
+}
+/* Cerrar dropdown al click fuera */
+document.addEventListener('click',e=>{
+  const wrap=document.getElementById('pMembersWrap');
+  if(wrap&&!wrap.contains(e.target)){
+    document.getElementById('pMembersDropdown')?.classList.add('hidden');
+  }
+});
 
 async function doLogin(){
   const usuario=document.getElementById('loginUsuario').value.trim();
@@ -127,6 +158,15 @@ function renderAll(){
   if(currentView==='projects') renderProjects();
   if(currentView==='trabados') renderTrabados();
   updateTrabadosCount();
+}
+
+/* Puebla los selects de responsable en ambos modales con _usuarios */
+function populateUserSelects(currentAssignee, currentOwner){
+  const opts='<option value="">— Seleccionar —</option>'+_usuarios.map(u=>`<option value="${esc(u.nombre_apellido)}">${esc(u.nombre_apellido)}</option>`).join('');
+  const tA=document.getElementById('tAssignee');
+  if(tA){ tA.innerHTML=opts; if(currentAssignee) tA.value=currentAssignee; }
+  const pO=document.getElementById('pOwner');
+  if(pO){ pO.innerHTML=opts; if(currentOwner) pO.value=currentOwner; }
 }
 
 /* Solo actualiza los selects de proyecto (filtro + modal), sin tocar el de responsable */
@@ -281,10 +321,12 @@ function openTaskModal(preStatus){
   ['tTitle','tDesc','tTags','tNotes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('tStatus').value=preStatus||'pendiente';
   document.getElementById('tPriority').value='media';
-  document.getElementById('tAssignee').value=currentUser?.usuario||'';
   document.getElementById('tDue').value='';
   updateFilters();
   document.getElementById('tProject').value='';
+  // preseleccionar el nombre_apellido del usuario actual si está en _usuarios
+  const myName=currentUser?.nombre_apellido||'';
+  populateUserSelects(myName, null);
   document.getElementById('taskModal').classList.remove('hidden');
 }
 function openEditTaskModal(id){
@@ -296,12 +338,12 @@ function openEditTaskModal(id){
   document.getElementById('tDesc').value=t.description||'';
   document.getElementById('tStatus').value=t.status;
   document.getElementById('tPriority').value=t.priority;
-  document.getElementById('tAssignee').value=t.assignee||'';
   document.getElementById('tDue').value=t.due||'';
   document.getElementById('tTags').value=t.tags||'';
   document.getElementById('tNotes').value=t.notes||'';
   updateFilters();
   document.getElementById('tProject').value=t.projectId||'';
+  populateUserSelects(t.assignee||'', null);
   document.getElementById('taskModal').classList.remove('hidden');
 }
 async function saveTask(){
@@ -332,19 +374,25 @@ function openProjectModal(){
   if(currentUser?.rol==='Lector') return;
   editingProjectId=null;
   document.getElementById('projModalTitle').textContent='Nuevo proyecto';
-  ['pName','pDesc','pOwner','pStart','pEnd','pMembers'].forEach(id=>document.getElementById(id).value='');
+  ['pName','pDesc','pStart','pEnd'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pMembers').value='';
   document.getElementById('pType').value='evento';
   document.getElementById('trabadoSection').classList.add('hidden');
   document.getElementById('btnDeleteProject').classList.add('hidden');
   document.getElementById('pTrabado').checked=false;
   document.getElementById('motivoGroup').style.display='none';
   if(document.getElementById('pMotivo')) document.getElementById('pMotivo').value='';
+  populateUserSelects(null, null);
+  buildMembersDropdown([]);
+  syncMembersValue();
   document.getElementById('projectModal').classList.remove('hidden');
 }
 async function saveProject(){
   if(_saving) return;
   const name=document.getElementById('pName').value.trim();
   if(!name){showToast('El nombre es obligatorio','error');return;}
+  const owner=document.getElementById('pOwner').value.trim();
+  if(!owner){showToast('El responsable principal es obligatorio','error');return;}
   _saving=true;
   const btn=document.querySelector('#projectModal .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
@@ -352,7 +400,7 @@ async function saveProject(){
     const trabado=document.getElementById('pTrabado').checked;
     const projects=getProjects();
     const existing=editingProjectId?projects.find(p=>p.id===editingProjectId):null;
-    const project={id:editingProjectId||uid(),name,description:document.getElementById('pDesc').value.trim(),type:document.getElementById('pType').value,owner:document.getElementById('pOwner').value.trim(),start:document.getElementById('pStart').value,end:document.getElementById('pEnd').value,members:document.getElementById('pMembers').value.trim(),trabado,motivo:trabado?document.getElementById('pMotivo').value.trim():'',createdAt:existing?.createdAt||nowAR()};
+    const project={id:editingProjectId||uid(),name,description:document.getElementById('pDesc').value.trim(),type:document.getElementById('pType').value,owner,start:document.getElementById('pStart').value,end:document.getElementById('pEnd').value,members:document.getElementById('pMembers').value.trim(),trabado,motivo:trabado?document.getElementById('pMotivo').value.trim():'',createdAt:existing?.createdAt||nowAR()};
     const msgProyecto=editingProjectId?'Proyecto actualizado':'Proyecto creado';
     if(editingProjectId){projects[projects.findIndex(p=>p.id===editingProjectId)]=project;}
     else{projects.push(project);}
@@ -405,10 +453,14 @@ function openProjectDetail(projId){
   document.getElementById('pName').value=p.name;
   document.getElementById('pDesc').value=p.description||'';
   document.getElementById('pType').value=p.type;
-  document.getElementById('pOwner').value=p.owner||'';
   document.getElementById('pStart').value=p.start||'';
   document.getElementById('pEnd').value=p.end||'';
-  document.getElementById('pMembers').value=p.members||'';
+  // poblar selects de usuarios
+  populateUserSelects(null, p.owner||'');
+  // poblar multiselect de miembros
+  const selectedMembers=(p.members||'').split(',').map(s=>s.trim()).filter(Boolean);
+  buildMembersDropdown(selectedMembers);
+  syncMembersValue();
   // mostrar sección trabado solo al editar
   document.getElementById('trabadoSection').classList.remove('hidden');
   document.getElementById('btnDeleteProject').classList.remove('hidden');

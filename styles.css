@@ -245,3 +245,32 @@ td.task-name-cell:hover { color: var(--accent); }
   .stats-row { grid-template-columns: 1fr 1fr; }
   .topbar,.filters-bar,.stats-row,.content { padding-left: 20px; padding-right: 20px; }
 }
+
+/* ---- Multi-select de miembros ---- */
+.multiselect-wrap { position: relative; }
+.multiselect-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border: 1.5px solid var(--border2);
+  border-radius: var(--radius); padding: 8px 12px; cursor: pointer;
+  font-size: 13px; color: var(--text3); min-height: 38px;
+  transition: border-color .15s;
+}
+.multiselect-trigger:hover { border-color: var(--border3); }
+.multiselect-placeholder { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text3); }
+.multiselect-arrow { font-size: 11px; color: var(--text3); margin-left: 8px; flex-shrink: 0; }
+.multiselect-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--surface); border: 1.5px solid var(--border2);
+  border-radius: var(--radius); z-index: 200;
+  max-height: 180px; overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+.multiselect-option {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; font-size: 13px; color: var(--text);
+  cursor: pointer; transition: background .12s;
+}
+.multiselect-option:hover { background: var(--accent-bg); }
+.multiselect-option input[type=checkbox] {
+  width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+}
