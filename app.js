@@ -397,7 +397,7 @@ function renderTrabados(){
           <div class="project-name" style="margin-bottom:6px">${esc(p.name)}</div>
           ${p.motivo?`<div style="font-size:12px;color:var(--red);background:var(--red-bg);padding:8px 10px;border-radius:var(--radius);margin-bottom:10px;line-height:1.5;font-style:italic">"${esc(p.motivo)}"</div>`:''}
           <div class="project-footer" style="margin-top:8px">
-            <div class="project-members">${members.slice(0,4).map(m=>`<div class="member-dot">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}</div>
+            <div class="project-members">${members.slice(0,4).map(m=>`<div class="member-dot" data-tip="${esc(m)}">${m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('')}${members.length>4?`<div class="member-dot" data-tip="${members.slice(4).map(x=>esc(x)).join(', ')}">+${members.length-4}</div>`:''}</div>
             <div class="project-tasks-count">${pt.length} tarea${pt.length!==1?'s':''} pausadas</div>
           </div>
         </div>`;
@@ -609,8 +609,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!tip){ tip = document.createElement('span'); tip.className='member-tooltip'; dot.appendChild(tip); }
     tip.textContent = dot.dataset.tip;
     const r = dot.getBoundingClientRect();
-    tip.style.top = (r.top + window.scrollY + r.height/2 - 12) + 'px';
-    tip.style.left = (r.right + window.scrollX + 8) + 'px';
+    tip.style.top = (r.top + r.height/2 - 12) + 'px';
+    tip.style.left = (r.right + 8) + 'px';
     tip.style.opacity = '1';
   });
   document.body.addEventListener('mouseout', e => {
