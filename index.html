@@ -20,7 +20,7 @@
   <div class="login-deco"></div>
   <div class="login-box">
     <div class="login-logo-row">
-      <div class="login-emblem"><img src="logo1.png" width="120" height="120" style="object-fit:contain;"></div>
+      <div class="login-emblem"><img src="logo1.png" style="width:100%;height:100%;object-fit:contain;"></div>
       <div class="login-logo-text">
         <h2>Centro de Estudiantes</h2>
         <p>UCA · Ingeniería</p>
@@ -40,6 +40,9 @@
     <button class="btn btn-primary" id="loginBtn" style="width:100%;justify-content:center;font-size:14.5px;padding:11px;" onclick="doLogin()">Ingresar al gestor →</button>
   </div>
 </div>
+
+<!-- Overlay para cerrar el sidebar en mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- APP -->
 <div class="app" id="appRoot">
@@ -106,6 +109,9 @@
         <div class="page-sub" id="pageSub">Vista kanban · todos los proyectos</div>
       </div>
       <div class="topbar-actions" id="topbarActions">
+        <button class="hamburger-btn" id="hamburgerBtn" onclick="openSidebar()" aria-label="Abrir menú">
+          <span></span>
+        </button>
         <button class="btn" onclick="openProjectModal()">◈ Nuevo proyecto</button>
         <button class="btn btn-primary" id="btnNuevaTarea" onclick="openTaskModal()">+ Nueva tarea</button>
       </div>
@@ -118,9 +124,27 @@
       <select class="filter-input" id="filterSort" onchange="renderAll()" style="max-width:160px;"><option value="newest">Más reciente</option><option value="oldest">Más antigua</option></select>
     </div>
     <div class="stats-row" id="statsRow" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat-card highlight"><div class="stat-label">Tareas activas</div><div class="stat-value" id="statActivas">0</div><div class="stat-icon">⚡</div></div>
-      <div class="stat-card"><div class="stat-label">Completadas</div><div class="stat-value" id="statCompletadas">0</div><div class="stat-icon">✓</div></div>
-      <div class="stat-card"><div class="stat-label">Proyectos activos</div><div class="stat-value" id="statProyectos">0</div><div class="stat-icon">◈</div></div>
+      <div class="stat-card highlight">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-card-body">
+          <div class="stat-label">Tareas activas</div>
+          <div class="stat-value" id="statActivas">0</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✓</div>
+        <div class="stat-card-body">
+          <div class="stat-label">Completadas</div>
+          <div class="stat-value" id="statCompletadas">0</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">◈</div>
+        <div class="stat-card-body">
+          <div class="stat-label">Proyectos activos</div>
+          <div class="stat-value" id="statProyectos">0</div>
+        </div>
+      </div>
     </div>
     <div class="content">
       <div id="viewBoard"><div class="board" id="kanbanBoard"></div></div>
@@ -198,5 +222,24 @@
 </div>
 
 <script src="app.js"></script>
+<script>
+  // Mobile sidebar drawer
+  function openSidebar() {
+    document.querySelector('.sidebar').classList.add('open');
+    document.getElementById('sidebarOverlay').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+  // Cerrar sidebar al seleccionar una vista en mobile
+  document.querySelectorAll('.nav-item-view, .nav-item-filter').forEach(function(el) {
+    el.addEventListener('click', function() {
+      if (window.innerWidth <= 960) closeSidebar();
+    });
+  });
+</script>
 </body>
 </html>
