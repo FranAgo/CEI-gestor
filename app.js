@@ -3,7 +3,8 @@
 //  Lógica principal: login, tareas, proyectos, filtros, sincronización
 // =============================================================
 
-const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyhhWXTyIM-KmUyvP0F0GRNEXhXgJgzmcAMaOCddvMAxLTV0n8Md8HkBMeizgu1yiZv/exec';
+const ENDPOINT  = 'https://script.google.com/macros/s/AKfycbyhhWXTyIM-KmUyvP0F0GRNEXhXgJgzmcAMaOCddvMAxLTV0n8Md8HkBMeizgu1yiZv/exec';
+const API_TOKEN = '326e9f64-348d-4849-97c5-296349451f5e';
 
 // --- Estado global ---
 let currentUser      = null;
@@ -149,6 +150,16 @@ function getTasks()    { return _tasks; }
 function saveProjects(p) { _projects = [...p]; }
 function saveTasks(t)    { _tasks    = [...t]; }
 
+/**
+ * Devuelve true si el usuario actual puede crear y editar tareas.
+ * Criterio: cualquier rol distinto de 'Lector'.
+ * Usar este helper en todos los chequeos de permiso de tareas
+ * para mantener el criterio centralizado.
+ */
+function canCreateTasks() {
+  return currentUser?.rol !== 'Lector';
+}
+
 
 // =============================================================
 //  API — comunicación con Google Apps Script
@@ -157,7 +168,7 @@ function saveTasks(t)    { _tasks    = [...t]; }
 async function api(action, data = null) {
   const res = await fetch(ENDPOINT, {
     method:  'POST',
-    body:    JSON.stringify({ action, ...(data || {}) }),
+    body:    JSON.stringify({ action, token: API_TOKEN, ...(data || {}) }),
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
   });
   return res.json();
@@ -208,7 +219,7 @@ async function doLogin() {
     const res = await api('login', { usuario, contrasena: password });
     if (res.ok) {
       currentUser = res.user;
-      localStorage.setItem('ce_session', JSON.stringify(currentUser));
+      localStorage.setItem('ce_session', JSON.stringify({ user: currentUser, savedAt: Date.now() }));
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('loadingScreen').classList.remove('hidden');
       await loadData();
@@ -230,9 +241,8 @@ async function doLogin() {
 function applySession() {
   document.getElementById('loginScreen').classList.add('hidden');
 
-  // Restaurar botones antes de aplicar restricciones de rol
-  document.getElementById('btnNuevaTarea').classList.remove('hidden');
-  document.querySelectorAll('#topbarActions .btn').forEach(b => b.classList.remove('hidden'));
+  // Resetea botones y sidebar al estado base antes de aplicar restricciones de rol.
+  resetSessionUI();
 
   const displayName = currentUser.nombre_apellido || currentUser.usuario;
   document.getElementById('sidebarAvatar').textContent = initials(displayName);
@@ -242,12 +252,28 @@ function applySession() {
   const carrEl = document.getElementById('sidebarCarrera');
   if (carrEl) carrEl.textContent = currentUser.carrera || '';
 
-  if (currentUser.rol === 'Lector') {
+  if (!canCreateTasks()) {
     document.getElementById('btnNuevaTarea').classList.add('hidden');
     document.querySelectorAll('#topbarActions .btn:not(.btn-primary)').forEach(b => b.classList.add('hidden'));
   }
 
   renderAll();
+}
+
+/**
+ * Restaura la UI al estado de sesión cerrada.
+ * Centraliza la lógica de reset para que logout() y futuros
+ * flujos de cierre de sesión no dupliquen estas líneas.
+ */
+function resetSessionUI() {
+  document.getElementById('btnNuevaTarea').classList.remove('hidden');
+  document.querySelectorAll('#topbarActions .btn').forEach(b => b.classList.remove('hidden'));
+  document.getElementById('sidebarAvatar').textContent = '?';
+  document.getElementById('sidebarName').textContent   = '—';
+  document.getElementById('sidebarRole').textContent   = '—';
+
+  const carrEl = document.getElementById('sidebarCarrera');
+  if (carrEl) carrEl.textContent = '';
 }
 
 function logout() {
@@ -257,14 +283,7 @@ function logout() {
   _tasks      = [];
   _usuarios   = [];
 
-  document.getElementById('btnNuevaTarea').classList.remove('hidden');
-  document.querySelectorAll('#topbarActions .btn').forEach(b => b.classList.remove('hidden'));
-  document.getElementById('sidebarAvatar').textContent = '?';
-  document.getElementById('sidebarName').textContent   = '—';
-  document.getElementById('sidebarRole').textContent   = '—';
-
-  const carrEl = document.getElementById('sidebarCarrera');
-  if (carrEl) carrEl.textContent = '';
+  resetSessionUI();
 
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginUsuario').value  = '';
@@ -316,9 +335,8 @@ function filterByStatus(st, el) {
   document.querySelectorAll('.nav-item-filter').forEach(i => i.classList.remove('active'));
   if (el) el.classList.add('active');
 
-  const esTrabada = st === 'trabada';
-  document.getElementById('filtersBar').style.display = esTrabada ? 'none' : '';
-  document.getElementById('statsRow').style.display   = esTrabada ? 'none' : '';
+  document.getElementById('filtersBar').style.display = '';
+  document.getElementById('statsRow').style.display   = '';
 
   renderAll();
 }
@@ -485,7 +503,7 @@ function updateStats() {
       t.filter(x => !trabadoIds.has(x.projectId) && x.status === 'revision').length,
       '◎');
     setCard(card3, 'Completadas',
-      t.filter(x => x.status === 'completado').length,
+      t.filter(x => !trabadoIds.has(x.projectId) && x.status === 'completado').length,
       '✓');
 
   } else if (currentView === 'list') {
@@ -534,7 +552,7 @@ function renderBoard() {
       ? `<div class="column-empty"><div class="column-empty-icon">○</div>Sin tareas</div>`
       : '';
 
-    const addBtn = currentUser?.rol === 'Editor'
+    const addBtn = canCreateTasks()
       ? `<button class="add-task-btn" onclick="openTaskModal('${col.id}')">+ agregar tarea</button>`
       : '';
 
@@ -695,8 +713,9 @@ function projectCardHTML(p, tasks, today) {
     footerDateStr = '';
   }
 
+  const canEdit = currentUser?.rol === 'Editor';
   return `
-    <div class="project-card" style="${isCompleted ? 'opacity:0.55;' : ''}" onclick="openProjectDetail('${p.id}')">
+    <div class="project-card" style="${isCompleted ? 'opacity:0.55;' : ''}${canEdit ? '' : 'cursor:default'}" ${canEdit ? `onclick="openProjectDetail('${p.id}')"` : ''}>
       <div class="project-card-header">
         <div class="project-name">${esc(p.name)}</div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
@@ -783,7 +802,7 @@ function renderTrabados() {
     ].join('');
 
     return `
-      <div class="project-card" style="border-color:rgba(217,79,79,0.35);" onclick="openProjectDetail('${p.id}')">
+      <div class="project-card" style="border-color:rgba(217,79,79,0.35);${currentUser?.rol !== 'Editor' ? 'cursor:default' : ''}" ${currentUser?.rol === 'Editor' ? `onclick="openProjectDetail('${p.id}')"` : ''}>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
           <span style="font-size:11px;padding:2px 8px;background:var(--red-bg);color:var(--red);border-radius:5px;font-family:var(--mono);font-weight:500;border:1px solid rgba(217,79,79,0.2)">⏸ trabado</span>
           <div class="project-type-badge" style="background:${col.bg};color:${col.color}">${p.type}</div>
@@ -816,7 +835,7 @@ function renderTrabados() {
 // =============================================================
 
 function openTaskModal(preStatus) {
-  if (currentUser?.rol === 'Lector') return;
+  if (!canCreateTasks()) return;
   editingTaskId = null;
   document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
   ['tTitle', 'tDesc', 'tTags', 'tNotes'].forEach(id => document.getElementById(id).value = '');
@@ -830,7 +849,7 @@ function openTaskModal(preStatus) {
 }
 
 function openEditTaskModal(id) {
-  if (currentUser?.rol === 'Lector') return;
+  if (!canCreateTasks()) return;
   const t = getTasks().find(x => x.id === id);
   if (!t) return;
 
@@ -858,6 +877,12 @@ async function saveTask() {
   const assignee = document.getElementById('tAssignee').value.trim();
   if (!assignee) { showToast('El responsable es obligatorio', 'error'); return; }
 
+  const selectedProjectId = document.getElementById('tProject').value;
+  if (selectedProjectId && !getProjects().find(p => p.id === selectedProjectId)) {
+    showToast('El proyecto seleccionado ya no existe. Elegí otro o dejalo vacío.', 'error');
+    return;
+  }
+
   _saving = true;
   const btn = document.querySelector('#taskModal .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
@@ -880,25 +905,36 @@ async function saveTask() {
     };
 
     let tasks = getTasks();
+    const previousTasks = [...tasks];
+
     if (editingTaskId) {
       const idx = tasks.findIndex(t => t.id === editingTaskId);
-      task.createdAt  = tasks[idx].createdAt;
-      tasks[idx]      = task;
+      task.createdAt   = tasks[idx].createdAt;
+      task.completedAt = tasks[idx].completedAt || '';
+      tasks[idx]       = task;
     } else {
-      task.createdAt = nowAR();
+      task.createdAt   = nowAR();
+      task.completedAt = '';
       tasks.push(task);
     }
 
     saveTasks(tasks);
-    showToast(editingTaskId ? 'Tarea actualizada' : 'Tarea creada correctamente');
     closeModal('taskModal');
     renderAll();
 
     try {
       const r = await api('saveTarea', { tarea: task });
-      if (!r?.ok) showToast(r?.error || 'Error al sincronizar con el servidor', 'error');
+      if (!r?.ok) {
+        saveTasks(previousTasks);
+        renderAll();
+        showToast(r?.error || 'Error al sincronizar. Los cambios se revirtieron.', 'error');
+      } else {
+        showToast(editingTaskId ? 'Tarea actualizada' : 'Tarea creada correctamente');
+      }
     } catch (e) {
-      showToast('Error de conexión al sincronizar', 'error');
+      saveTasks(previousTasks);
+      renderAll();
+      showToast('Error de conexión. Los cambios se revirtieron.', 'error');
     }
   } finally {
     _saving = false;
@@ -912,7 +948,7 @@ async function saveTask() {
 // =============================================================
 
 function openProjectModal() {
-  if (currentUser?.rol === 'Lector') return;
+  if (!canCreateTasks()) return;
   editingProjectId = null;
   document.getElementById('projModalTitle').textContent = 'Nuevo proyecto';
   ['pName', 'pDesc', 'pStart', 'pEnd'].forEach(id => document.getElementById(id).value = '');
@@ -938,14 +974,30 @@ async function saveProject() {
   const owner = document.getElementById('pOwner').value.trim();
   if (!owner) { showToast('El responsable principal es obligatorio', 'error'); return; }
 
+  // Validaciones que deben correr ANTES de bloquear el botón,
+  // para que un fallo no deje _saving=true ni el botón deshabilitado.
+  const trabado = document.getElementById('pTrabado').checked;
+  const motivo  = trabado ? document.getElementById('pMotivo').value.trim() : '';
+  if (trabado && !motivo) {
+    showToast('El motivo del trabe es obligatorio', 'error');
+    return;
+  }
+
+  const start = document.getElementById('pStart').value;
+  const end   = document.getElementById('pEnd').value;
+  if (start && end && end < start) {
+    showToast('La fecha de fin no puede ser anterior a la de inicio', 'error');
+    return;
+  }
+
   _saving = true;
   const btn = document.querySelector('#projectModal .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
   try {
-    const trabado  = document.getElementById('pTrabado').checked;
-    const projects = getProjects();
-    const existing = editingProjectId ? projects.find(p => p.id === editingProjectId) : null;
+    const projects     = getProjects();
+    const previousProjects = [...projects];
+    const existing     = editingProjectId ? projects.find(p => p.id === editingProjectId) : null;
 
     const project = {
       id:          editingProjectId || uid(),
@@ -953,11 +1005,11 @@ async function saveProject() {
       description: document.getElementById('pDesc').value.trim(),
       type:        document.getElementById('pType').value,
       owner,
-      start:       document.getElementById('pStart').value,
-      end:         document.getElementById('pEnd').value,
+      start,
+      end,
       members:     document.getElementById('pMembers').value.trim(),
       trabado,
-      motivo:      trabado ? document.getElementById('pMotivo').value.trim() : '',
+      motivo,
       status:      existing?.status      || 'activo',
       completedAt: existing?.completedAt || '',
       createdAt:   existing?.createdAt   || nowAR(),
@@ -970,18 +1022,23 @@ async function saveProject() {
     }
 
     saveProjects(projects);
+    closeModal('projectModal');
+    renderAll();
 
     try {
       const r = await api('saveProyecto', { proyecto: project });
-      if (!r?.ok) { showToast(r?.error || 'Error guardando proyecto', 'error'); return; }
+      if (!r?.ok) {
+        saveProjects(previousProjects);
+        renderAll();
+        showToast(r?.error || 'Error guardando proyecto. Los cambios se revirtieron.', 'error');
+      } else {
+        showToast(editingProjectId ? 'Proyecto actualizado' : 'Proyecto creado');
+      }
     } catch (e) {
-      showToast('Error de conexión', 'error');
-      return;
+      saveProjects(previousProjects);
+      renderAll();
+      showToast('Error de conexión. Los cambios se revirtieron.', 'error');
     }
-
-    showToast(editingProjectId ? 'Proyecto actualizado' : 'Proyecto creado');
-    closeModal('projectModal');
-    renderAll();
   } finally {
     _saving = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar proyecto'; }
@@ -1035,6 +1092,10 @@ function toggleMembersDropdown() {
 function buildMembersDropdown(selectedArr) {
   const dd = document.getElementById('pMembersDropdown');
   if (!dd) return;
+  if (!_usuarios.length) {
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text4)">No hay usuarios cargados</div>';
+    return;
+  }
   dd.innerHTML = _usuarios.map(u => {
     const checked = selectedArr.includes(u.nombre_apellido);
     return `<label class="multiselect-option"><input type="checkbox" value="${esc(u.nombre_apellido)}" ${checked ? 'checked' : ''} onchange="syncMembersValue()"> ${esc(u.nombre_apellido)}</label>`;
@@ -1083,10 +1144,12 @@ function openDetail(taskId) {
       ? `<div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:4px">◈ ${esc(proj.name)}</div>`
       : '';
 
-  // Botones de estado
-  const statusButtons = ['pendiente', 'en-progreso', 'revision', 'completado', 'trabada']
-    .map(s =>
-      `<button class="status-opt ${t.status === s ? 'selected' : ''}" data-val="${s}" onclick="changeStatus('${t.id}','${s}')">${statusLabel(s)}</button>`
+  // Botones de estado — solo editables por Editor
+  const isEditor = currentUser?.rol === 'Editor';
+  const statusButtons = ['pendiente', 'en-progreso', 'revision', 'completado']
+    .map(s => isEditor
+      ? `<button class="status-opt ${t.status === s ? 'selected' : ''}" data-val="${s}" onclick="changeStatus('${t.id}','${s}')">${statusLabel(s)}</button>`
+      : `<span class="status-opt ${t.status === s ? 'selected' : ''}" style="cursor:default;pointer-events:none" data-val="${s}">${statusLabel(s)}</span>`
     ).join('');
 
   // Tags
@@ -1165,38 +1228,69 @@ function openDetail(taskId) {
   document.getElementById('detailModal').classList.remove('hidden');
 }
 
-function changeStatus(taskId, status) {
+async function changeStatus(taskId, status) {
   let tasks = getTasks();
   const idx = tasks.findIndex(t => t.id === taskId);
   if (idx === -1) return;
 
-  tasks[idx].status = status;
-  if (status === 'completado' && !tasks[idx].completedAt) {
-    tasks[idx].completedAt = nowAR();
-  } else if (status !== 'completado') {
-    tasks[idx].completedAt = '';
-  }
+  // Copia profunda (1 nivel) del array para que el rollback preserve los valores originales.
+  // Sin esto, previousTasks[idx] y tasks[idx] apuntarían al mismo objeto mutado.
+  const previousTasks = tasks.map(t => ({ ...t }));
+
+  tasks[idx] = {
+    ...tasks[idx],
+    status,
+    completedAt: status === 'completado'
+      ? (tasks[idx].completedAt || nowAR())
+      : '',
+  };
 
   saveTasks(tasks);
-  api('saveTarea', { tarea: tasks[idx] })
-    .then(r => { if (!r?.ok) showToast(r?.error || 'Error guardando estado', 'error'); })
-    .catch(() => showToast('Error de conexión', 'error'));
   openDetail(taskId);
   renderAll();
+
+  try {
+    const r = await api('saveTarea', { tarea: tasks[idx] });
+    if (!r?.ok) {
+      saveTasks(previousTasks);
+      openDetail(taskId);
+      renderAll();
+      showToast(r?.error || 'Error guardando estado', 'error');
+    }
+  } catch {
+    saveTasks(previousTasks);
+    openDetail(taskId);
+    renderAll();
+    showToast('Error de conexión', 'error');
+  }
 }
 
-function changeTaskProject(taskId, projectId) {
+async function changeTaskProject(taskId, projectId) {
   let tasks = getTasks();
   const idx = tasks.findIndex(t => t.id === taskId);
   if (idx === -1) return;
 
-  tasks[idx].projectId = projectId;
+  // Misma lógica que changeStatus: copia profunda (1 nivel) para rollback seguro.
+  const previousTasks = tasks.map(t => ({ ...t }));
+  tasks[idx] = { ...tasks[idx], projectId };
   saveTasks(tasks);
-  api('saveTarea', { tarea: tasks[idx] })
-    .then(r => { if (!r?.ok) showToast(r?.error || 'Error guardando proyecto', 'error'); })
-    .catch(() => showToast('Error de conexión', 'error'));
   openDetail(taskId);
   renderAll();
+
+  try {
+    const r = await api('saveTarea', { tarea: tasks[idx] });
+    if (!r?.ok) {
+      saveTasks(previousTasks);
+      openDetail(taskId);
+      renderAll();
+      showToast(r?.error || 'Error guardando proyecto', 'error');
+    }
+  } catch {
+    saveTasks(previousTasks);
+    openDetail(taskId);
+    renderAll();
+    showToast('Error de conexión', 'error');
+  }
 }
 
 
@@ -1206,11 +1300,22 @@ function changeTaskProject(taskId, projectId) {
 
 async function deleteTask(id) {
   if (!confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')) return;
+
+  const previousTasks = [...getTasks()];
   saveTasks(getTasks().filter(t => t.id !== id));
+  renderAll();
+
   try {
     const r = await api('deleteTarea', { id });
-    if (!r?.ok) { showToast(r?.error || 'Error eliminando tarea', 'error'); return; }
+    if (!r?.ok) {
+      saveTasks(previousTasks);
+      renderAll();
+      showToast(r?.error || 'Error eliminando tarea', 'error');
+      return;
+    }
   } catch (e) {
+    saveTasks(previousTasks);
+    renderAll();
     showToast('Error de conexión', 'error');
     return;
   }
@@ -1222,11 +1327,22 @@ async function deleteTask(id) {
 async function deleteProject() {
   if (!editingProjectId) return;
   if (!confirm('¿Eliminar este proyecto? Sus tareas no se eliminarán automáticamente.')) return;
+
+  const previousProjects = [...getProjects()];
   saveProjects(getProjects().filter(p => p.id !== editingProjectId));
+  renderAll();
+
   try {
     const r = await api('deleteProyecto', { id: editingProjectId });
-    if (!r?.ok) { showToast(r?.error || 'Error eliminando proyecto', 'error'); return; }
+    if (!r?.ok) {
+      saveProjects(previousProjects);
+      renderAll();
+      showToast(r?.error || 'Error eliminando proyecto', 'error');
+      return;
+    }
   } catch (e) {
+    saveProjects(previousProjects);
+    renderAll();
     showToast('Error de conexión', 'error');
     return;
   }
@@ -1266,9 +1382,24 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 // =============================================================
 
 window.addEventListener('DOMContentLoaded', async () => {
+  const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 horas en ms
   const saved = localStorage.getItem('ce_session');
   if (saved) {
-    currentUser = JSON.parse(saved);
+    try {
+      const parsed = JSON.parse(saved);
+      // Compatibilidad con sesiones guardadas en formato antiguo (sin savedAt)
+      const savedAt = parsed.savedAt || 0;
+      if (Date.now() - savedAt > SESSION_TTL) {
+        localStorage.removeItem('ce_session');
+        document.getElementById('loginScreen').classList.remove('hidden');
+        return;
+      }
+      currentUser = parsed.user || parsed;
+    } catch (e) {
+      localStorage.removeItem('ce_session');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      return;
+    }
     document.getElementById('loadingScreen').classList.remove('hidden');
     try {
       await loadData();

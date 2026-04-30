@@ -118,10 +118,45 @@
     </div>
     <div class="filters-bar" id="filtersBar">
       <input class="filter-input" type="text" id="searchInput" placeholder="🔍  Buscar tareas..." oninput="renderAll()" style="min-width:200px;">
-      <select class="filter-input" id="filterProject" onchange="renderAll()" style="max-width:190px;"><option value="">Todos los proyectos</option></select>
-      <select class="filter-input" id="filterPriority" onchange="renderAll()" style="max-width:155px;"><option value="">Toda prioridad</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
-      <select class="filter-input" id="filterAssignee" onchange="renderAll()" style="max-width:170px;"><option value="">Cualquier responsable</option></select>
-      <select class="filter-input" id="filterSort" onchange="renderAll()" style="max-width:160px;"><option value="newest">Más reciente</option><option value="oldest">Más antigua</option></select>
+
+      <!-- Select oculto — app.js lo lee igual que antes -->
+      <select id="filterProject"  style="display:none" onchange="renderAll()"><option value="">Todos los proyectos</option></select>
+      <select id="filterPriority" style="display:none" onchange="renderAll()"><option value="">Toda prioridad</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
+      <select id="filterAssignee" style="display:none" onchange="renderAll()"><option value="">Cualquier responsable</option></select>
+      <select id="filterSort"     style="display:none" onchange="renderAll()"><option value="newest">Más reciente</option><option value="oldest">Más antigua</option></select>
+
+      <!-- Custom dropdowns visibles -->
+      <div class="flt-wrap" id="fltWrapProject">
+        <div class="flt-trigger" id="fltTriggerProject">
+          <span class="flt-trigger-text" id="fltLabelProject">Todos los proyectos</span>
+          <span class="flt-chevron">▾</span>
+        </div>
+        <div class="flt-panel" id="fltPanelProject"></div>
+      </div>
+
+      <div class="flt-wrap" id="fltWrapPriority">
+        <div class="flt-trigger" id="fltTriggerPriority">
+          <span class="flt-trigger-text" id="fltLabelPriority">Toda prioridad</span>
+          <span class="flt-chevron">▾</span>
+        </div>
+        <div class="flt-panel" id="fltPanelPriority"></div>
+      </div>
+
+      <div class="flt-wrap" id="fltWrapAssignee">
+        <div class="flt-trigger" id="fltTriggerAssignee">
+          <span class="flt-trigger-text" id="fltLabelAssignee">Cualquier responsable</span>
+          <span class="flt-chevron">▾</span>
+        </div>
+        <div class="flt-panel" id="fltPanelAssignee"></div>
+      </div>
+
+      <div class="flt-wrap" id="fltWrapSort">
+        <div class="flt-trigger" id="fltTriggerSort">
+          <span class="flt-trigger-text" id="fltLabelSort">Más reciente</span>
+          <span class="flt-chevron">▾</span>
+        </div>
+        <div class="flt-panel flt-panel-right" id="fltPanelSort"></div>
+      </div>
     </div>
     <div class="stats-row" id="statsRow" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card highlight">
@@ -234,12 +269,150 @@
     document.getElementById('sidebarOverlay').classList.remove('visible');
     document.body.style.overflow = '';
   }
-  // Cerrar sidebar al seleccionar una vista en mobile
   document.querySelectorAll('.nav-item-view, .nav-item-filter').forEach(function(el) {
     el.addEventListener('click', function() {
       if (window.innerWidth <= 960) closeSidebar();
     });
   });
 </script>
+
+<script>
+// =============================================================
+//  CUSTOM FILTER DROPDOWNS
+//  Wrapper sobre los <select> ocultos — app.js no necesita cambios.
+//  Este script va DESPUÉS de app.js para poder parchear renderAll.
+// =============================================================
+
+const FLT_CONFIGS = [
+  {
+    id:           'Project',
+    selectId:     'filterProject',
+    defaultLabel: 'Todos los proyectos',
+  },
+  {
+    id:           'Priority',
+    selectId:     'filterPriority',
+    defaultLabel: 'Toda prioridad',
+    staticOptions: [
+      { value: '',      label: 'Toda prioridad' },
+      { value: 'alta',  label: 'Alta' },
+      { value: 'media', label: 'Media' },
+      { value: 'baja',  label: 'Baja' },
+    ],
+  },
+  {
+    id:           'Assignee',
+    selectId:     'filterAssignee',
+    defaultLabel: 'Cualquier responsable',
+  },
+  {
+    id:           'Sort',
+    selectId:     'filterSort',
+    defaultLabel: 'Más reciente',
+    staticOptions: [
+      { value: 'newest', label: 'Más reciente' },
+      { value: 'oldest', label: 'Más antigua' },
+    ],
+  },
+];
+
+let _openFlt = null;
+
+function buildFltPanel(config) {
+  const select  = document.getElementById(config.selectId);
+  const panel   = document.getElementById('fltPanel' + config.id);
+  const current = select.value;
+
+  const options = config.staticOptions
+    ? config.staticOptions
+    : Array.from(select.options).map(o => ({ value: o.value, label: o.textContent }));
+
+  panel.innerHTML = options.map(o => `
+    <div class="flt-option ${o.value === current ? 'selected' : ''}"
+         data-value="${o.value}"
+         data-flt="${config.id}">
+      <span class="flt-option-check">✓</span>
+      ${o.label}
+    </div>
+  `).join('');
+}
+
+function syncFltLabel(config) {
+  const select  = document.getElementById(config.selectId);
+  const label   = document.getElementById('fltLabel' + config.id);
+  if (!select || !label) return;
+  const options = config.staticOptions
+    ? config.staticOptions
+    : Array.from(select.options).map(o => ({ value: o.value, label: o.textContent }));
+  const sel = options.find(o => o.value === select.value);
+  label.textContent = (sel && sel.label) ? sel.label : config.defaultLabel;
+}
+
+function openFlt(id) {
+  if (_openFlt && _openFlt !== id) closeFlt(_openFlt);
+  const trigger = document.getElementById('fltTrigger' + id);
+  const panel   = document.getElementById('fltPanel'   + id);
+  const config  = FLT_CONFIGS.find(c => c.id === id);
+  buildFltPanel(config);
+  trigger.classList.add('open');
+  panel.classList.add('open');
+  _openFlt = id;
+}
+
+function closeFlt(id) {
+  document.getElementById('fltTrigger' + id)?.classList.remove('open');
+  document.getElementById('fltPanel'   + id)?.classList.remove('open');
+  if (_openFlt === id) _openFlt = null;
+}
+
+function closeAllFlt() {
+  FLT_CONFIGS.forEach(c => closeFlt(c.id));
+}
+
+function toggleFlt(id) {
+  _openFlt === id ? closeFlt(id) : openFlt(id);
+}
+
+// Click en opción del panel
+document.addEventListener('click', e => {
+  const opt = e.target.closest('.flt-option');
+  if (opt) {
+    const id     = opt.dataset.flt;
+    const value  = opt.dataset.value;
+    const config = FLT_CONFIGS.find(c => c.id === id);
+    const select = document.getElementById(config.selectId);
+    select.value = value;
+    select.dispatchEvent(new Event('change')); // dispara renderAll() en app.js
+    closeFlt(id);
+    syncFltLabel(config);
+    return;
+  }
+  // Click fuera → cierra todo
+  if (!e.target.closest('.flt-wrap')) closeAllFlt();
+});
+
+// Triggers de apertura
+FLT_CONFIGS.forEach(c => {
+  const trigger = document.getElementById('fltTrigger' + c.id);
+  if (trigger) trigger.addEventListener('click', () => toggleFlt(c.id));
+});
+
+// Patch renderAll: re-sincroniza labels cuando app.js actualiza los <select> ocultos
+// (p.ej. cuando se agregan proyectos o responsables nuevos)
+;(function patchRenderAll() {
+  const orig = window.renderAll;
+  if (!orig) return;
+  window.renderAll = function() {
+    orig.apply(this, arguments);
+    FLT_CONFIGS.forEach(syncFltLabel);
+  };
+})();
+
+// Escape cierra paneles abiertos
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAllFlt();
+});
+</script>
+
 </body>
 </html>
