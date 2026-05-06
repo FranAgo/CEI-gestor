@@ -150,16 +150,6 @@ function getTasks()    { return _tasks; }
 function saveProjects(p) { _projects = [...p]; }
 function saveTasks(t)    { _tasks    = [...t]; }
 
-/**
- * Devuelve true si el usuario actual puede crear y editar tareas.
- * Criterio: cualquier rol distinto de 'Lector'.
- * Usar este helper en todos los chequeos de permiso de tareas
- * para mantener el criterio centralizado.
- */
-function canCreateTasks() {
-  return currentUser?.rol !== 'Lector';
-}
-
 
 // =============================================================
 //  API — comunicación con Google Apps Script
@@ -219,7 +209,7 @@ async function doLogin() {
     const res = await api('login', { usuario, contrasena: password });
     if (res.ok) {
       currentUser = res.user;
-      localStorage.setItem('ce_session', JSON.stringify({ user: currentUser, savedAt: Date.now() }));
+      localStorage.setItem('ce_session', JSON.stringify(currentUser));
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('loadingScreen').classList.remove('hidden');
       await loadData();
@@ -241,8 +231,9 @@ async function doLogin() {
 function applySession() {
   document.getElementById('loginScreen').classList.add('hidden');
 
-  // Resetea botones y sidebar al estado base antes de aplicar restricciones de rol.
-  resetSessionUI();
+  // Restaurar botones antes de aplicar restricciones de rol
+  document.getElementById('btnNuevaTarea').classList.remove('hidden');
+  document.querySelectorAll('#topbarActions .btn').forEach(b => b.classList.remove('hidden'));
 
   const displayName = currentUser.nombre_apellido || currentUser.usuario;
   document.getElementById('sidebarAvatar').textContent = initials(displayName);
@@ -252,20 +243,31 @@ function applySession() {
   const carrEl = document.getElementById('sidebarCarrera');
   if (carrEl) carrEl.textContent = currentUser.carrera || '';
 
-  if (!canCreateTasks()) {
+  if (currentUser.rol === 'Lector') {
     document.getElementById('btnNuevaTarea').classList.add('hidden');
     document.querySelectorAll('#topbarActions .btn:not(.btn-primary)').forEach(b => b.classList.add('hidden'));
+  }
+
+  // Mostrar/ocultar nav de usuarios según rol
+  const navUsuarios = document.getElementById('navUsuarios');
+  if (navUsuarios) {
+    navUsuarios.style.display = currentUser.rol === 'Editor' ? '' : 'none';
   }
 
   renderAll();
 }
 
-/**
- * Restaura la UI al estado de sesión cerrada.
- * Centraliza la lógica de reset para que logout() y futuros
- * flujos de cierre de sesión no dupliquen estas líneas.
- */
-function resetSessionUI() {
+function logout() {
+  localStorage.removeItem('ce_session');
+  currentUser          = null;
+  _projects            = [];
+  _tasks               = [];
+  _usuarios            = [];
+  _usuariosCompletos   = [];
+  _rolesDisponibles    = [];
+  _carrerasDisponibles = [];
+  _editingUserId       = null;
+
   document.getElementById('btnNuevaTarea').classList.remove('hidden');
   document.querySelectorAll('#topbarActions .btn').forEach(b => b.classList.remove('hidden'));
   document.getElementById('sidebarAvatar').textContent = '?';
@@ -274,16 +276,9 @@ function resetSessionUI() {
 
   const carrEl = document.getElementById('sidebarCarrera');
   if (carrEl) carrEl.textContent = '';
-}
 
-function logout() {
-  localStorage.removeItem('ce_session');
-  currentUser = null;
-  _projects   = [];
-  _tasks      = [];
-  _usuarios   = [];
-
-  resetSessionUI();
+  const navUsuarios = document.getElementById('navUsuarios');
+  if (navUsuarios) navUsuarios.style.display = 'none';
 
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginUsuario').value  = '';
@@ -306,8 +301,8 @@ function switchView(view, el) {
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
     searchInput.placeholder = view === 'projects'
-      ? '🔍  Buscar proyectos...'
-      : '🔍  Buscar tareas...';
+      ? 'Buscar proyectos...'
+      : 'Buscar tareas...';
   }
 
   document.querySelectorAll('.nav-item-view').forEach(i => i.classList.remove('active'));
@@ -317,17 +312,26 @@ function switchView(view, el) {
   document.getElementById('viewList').classList.toggle('hidden',     view !== 'list');
   document.getElementById('viewProjects').classList.toggle('hidden', view !== 'projects');
   document.getElementById('viewTrabados').classList.toggle('hidden', view !== 'trabados');
+  document.getElementById('viewUsuarios').classList.toggle('hidden', view !== 'usuarios');
+
+  // Ocultar filtros y stats en vista de usuarios
+  if (view === 'usuarios') {
+    document.getElementById('filtersBar').style.display = 'none';
+    document.getElementById('statsRow').style.display   = 'none';
+  }
 
   const titles = {
     board:    ['Tablero',            'Vista kanban · todos los proyectos'],
     list:     ['Lista de tareas',    'Vista tabular completa'],
     projects: ['Proyectos',          'Resumen general de proyectos'],
     trabados: ['Proyectos trabados', 'Pausados por causas externas'],
+    usuarios: ['Gestión de usuarios','Administrar miembros del centro'],
   };
   document.getElementById('pageTitle').textContent = titles[view][0];
   document.getElementById('pageSub').textContent   = titles[view][1];
 
-  renderAll();
+  if (view === 'usuarios') renderUsuarios();
+  else renderAll();
 }
 
 function filterByStatus(st, el) {
@@ -335,8 +339,9 @@ function filterByStatus(st, el) {
   document.querySelectorAll('.nav-item-filter').forEach(i => i.classList.remove('active'));
   if (el) el.classList.add('active');
 
-  document.getElementById('filtersBar').style.display = '';
-  document.getElementById('statsRow').style.display   = '';
+  const esTrabada = st === 'trabada';
+  document.getElementById('filtersBar').style.display = esTrabada ? 'none' : '';
+  document.getElementById('statsRow').style.display   = esTrabada ? 'none' : '';
 
   renderAll();
 }
@@ -395,6 +400,7 @@ function renderAll() {
   if (currentView === 'list')     renderList();
   if (currentView === 'projects') renderProjects();
   if (currentView === 'trabados') renderTrabados();
+  // 'usuarios' no se renderiza desde renderAll — tiene su propio flujo con llamada API
   updateTrabadosCount();
 }
 
@@ -477,6 +483,18 @@ function updateFilters() {
 //  ESTADÍSTICAS
 // =============================================================
 
+// SVG íconos para stat cards (Lucide, 22px, stroke currentColor)
+const STAT_ICONS = {
+  zap:      `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+  check:    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  eye:      `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  list:     `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+  alert:    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  folder:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/></svg>`,
+  pause:    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>`,
+  circle:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`,
+};
+
 function updateStats() {
   const t      = getTasks();
   const p      = getProjects();
@@ -488,45 +506,45 @@ function updateStats() {
   const card3 = document.querySelector('#statsRow .stat-card:nth-child(3)');
   if (!card1 || !card2 || !card3) return;
 
-  function setCard(card, label, value, icon, highlight) {
-    card.querySelector('.stat-label').textContent = label;
-    card.querySelector('.stat-value').textContent = value;
-    card.querySelector('.stat-icon').textContent  = icon;
+  function setCard(card, label, value, iconKey, highlight) {
+    card.querySelector('.stat-label').textContent  = label;
+    card.querySelector('.stat-value').textContent  = value;
+    card.querySelector('.stat-icon').innerHTML     = STAT_ICONS[iconKey] || '';
     card.classList.toggle('highlight', !!highlight);
   }
 
   if (currentView === 'board') {
     setCard(card1, 'Tareas activas',
       t.filter(x => !trabadoIds.has(x.projectId) && (x.status === 'en-progreso' || x.status === 'pendiente')).length,
-      '⚡', true);
+      'zap', true);
     setCard(card2, 'En revisión',
       t.filter(x => !trabadoIds.has(x.projectId) && x.status === 'revision').length,
-      '◎');
+      'eye');
     setCard(card3, 'Completadas',
       t.filter(x => !trabadoIds.has(x.projectId) && x.status === 'completado').length,
-      '✓');
+      'check');
 
   } else if (currentView === 'list') {
     const visible  = t.filter(x => !trabadoIds.has(x.projectId));
     const vencidas = visible.filter(x => x.due && x.due < today && x.status !== 'completado');
-    setCard(card1, 'Total tareas',  visible.length, '≡', true);
-    setCard(card2, 'Vencidas',      vencidas.length, '⚠', vencidas.length > 0);
-    setCard(card3, 'Completadas',   visible.filter(x => x.status === 'completado').length, '✓');
+    setCard(card1, 'Total tareas',  visible.length, 'list', true);
+    setCard(card2, 'Vencidas',      vencidas.length, 'alert', vencidas.length > 0);
+    setCard(card3, 'Completadas',   visible.filter(x => x.status === 'completado').length, 'check');
     card2.style.setProperty('--stat-alert', vencidas.length > 0 ? 'var(--red)' : '');
 
   } else if (currentView === 'projects') {
     setCard(card1, 'Proyectos activos',
       p.filter(x => !x.trabado && x.status !== 'completado').length,
-      '◈', true);
-    setCard(card2, 'Completados', p.filter(x => x.status === 'completado').length, '✓');
-    setCard(card3, 'Trabados',    p.filter(x => x.trabado).length, '⏸');
+      'folder', true);
+    setCard(card2, 'Completados', p.filter(x => x.status === 'completado').length, 'check');
+    setCard(card3, 'Trabados',    p.filter(x => x.trabado).length, 'pause');
 
   } else if (currentView === 'trabados') {
     const trabados       = p.filter(x => x.trabado);
     const tareasParadas  = t.filter(x => trabadoIds.has(x.projectId));
-    setCard(card1, 'Proyectos trabados', trabados.length, '⏸', trabados.length > 0);
-    setCard(card2, 'Tareas pausadas',    tareasParadas.length, '○');
-    setCard(card3, 'Proyectos activos',  p.filter(x => !x.trabado && x.status !== 'completado').length, '◈');
+    setCard(card1, 'Proyectos trabados', trabados.length, 'pause', trabados.length > 0);
+    setCard(card2, 'Tareas pausadas',    tareasParadas.length, 'circle');
+    setCard(card3, 'Proyectos activos',  p.filter(x => !x.trabado && x.status !== 'completado').length, 'folder');
   }
 }
 
@@ -552,7 +570,7 @@ function renderBoard() {
       ? `<div class="column-empty"><div class="column-empty-icon">○</div>Sin tareas</div>`
       : '';
 
-    const addBtn = canCreateTasks()
+    const addBtn = currentUser?.rol === 'Editor'
       ? `<button class="add-task-btn" onclick="openTaskModal('${col.id}')">+ agregar tarea</button>`
       : '';
 
@@ -835,7 +853,7 @@ function renderTrabados() {
 // =============================================================
 
 function openTaskModal(preStatus) {
-  if (!canCreateTasks()) return;
+  if (currentUser?.rol === 'Lector') return;
   editingTaskId = null;
   document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
   ['tTitle', 'tDesc', 'tTags', 'tNotes'].forEach(id => document.getElementById(id).value = '');
@@ -849,7 +867,7 @@ function openTaskModal(preStatus) {
 }
 
 function openEditTaskModal(id) {
-  if (!canCreateTasks()) return;
+  if (currentUser?.rol === 'Lector') return;
   const t = getTasks().find(x => x.id === id);
   if (!t) return;
 
@@ -876,12 +894,6 @@ async function saveTask() {
 
   const assignee = document.getElementById('tAssignee').value.trim();
   if (!assignee) { showToast('El responsable es obligatorio', 'error'); return; }
-
-  const selectedProjectId = document.getElementById('tProject').value;
-  if (selectedProjectId && !getProjects().find(p => p.id === selectedProjectId)) {
-    showToast('El proyecto seleccionado ya no existe. Elegí otro o dejalo vacío.', 'error');
-    return;
-  }
 
   _saving = true;
   const btn = document.querySelector('#taskModal .btn-primary');
@@ -948,7 +960,7 @@ async function saveTask() {
 // =============================================================
 
 function openProjectModal() {
-  if (!canCreateTasks()) return;
+  if (currentUser?.rol === 'Lector') return;
   editingProjectId = null;
   document.getElementById('projModalTitle').textContent = 'Nuevo proyecto';
   ['pName', 'pDesc', 'pStart', 'pEnd'].forEach(id => document.getElementById(id).value = '');
@@ -1233,17 +1245,14 @@ async function changeStatus(taskId, status) {
   const idx = tasks.findIndex(t => t.id === taskId);
   if (idx === -1) return;
 
-  // Copia profunda (1 nivel) del array para que el rollback preserve los valores originales.
-  // Sin esto, previousTasks[idx] y tasks[idx] apuntarían al mismo objeto mutado.
-  const previousTasks = tasks.map(t => ({ ...t }));
+  const previousTasks = [...tasks];
 
-  tasks[idx] = {
-    ...tasks[idx],
-    status,
-    completedAt: status === 'completado'
-      ? (tasks[idx].completedAt || nowAR())
-      : '',
-  };
+  tasks[idx].status = status;
+  if (status === 'completado' && !tasks[idx].completedAt) {
+    tasks[idx].completedAt = nowAR();
+  } else if (status !== 'completado') {
+    tasks[idx].completedAt = '';
+  }
 
   saveTasks(tasks);
   openDetail(taskId);
@@ -1265,32 +1274,18 @@ async function changeStatus(taskId, status) {
   }
 }
 
-async function changeTaskProject(taskId, projectId) {
+function changeTaskProject(taskId, projectId) {
   let tasks = getTasks();
   const idx = tasks.findIndex(t => t.id === taskId);
   if (idx === -1) return;
 
-  // Misma lógica que changeStatus: copia profunda (1 nivel) para rollback seguro.
-  const previousTasks = tasks.map(t => ({ ...t }));
-  tasks[idx] = { ...tasks[idx], projectId };
+  tasks[idx].projectId = projectId;
   saveTasks(tasks);
+  api('saveTarea', { tarea: tasks[idx] })
+    .then(r => { if (!r?.ok) showToast(r?.error || 'Error guardando proyecto', 'error'); })
+    .catch(() => showToast('Error de conexión', 'error'));
   openDetail(taskId);
   renderAll();
-
-  try {
-    const r = await api('saveTarea', { tarea: tasks[idx] });
-    if (!r?.ok) {
-      saveTasks(previousTasks);
-      openDetail(taskId);
-      renderAll();
-      showToast(r?.error || 'Error guardando proyecto', 'error');
-    }
-  } catch {
-    saveTasks(previousTasks);
-    openDetail(taskId);
-    renderAll();
-    showToast('Error de conexión', 'error');
-  }
 }
 
 
@@ -1327,22 +1322,11 @@ async function deleteTask(id) {
 async function deleteProject() {
   if (!editingProjectId) return;
   if (!confirm('¿Eliminar este proyecto? Sus tareas no se eliminarán automáticamente.')) return;
-
-  const previousProjects = [...getProjects()];
   saveProjects(getProjects().filter(p => p.id !== editingProjectId));
-  renderAll();
-
   try {
     const r = await api('deleteProyecto', { id: editingProjectId });
-    if (!r?.ok) {
-      saveProjects(previousProjects);
-      renderAll();
-      showToast(r?.error || 'Error eliminando proyecto', 'error');
-      return;
-    }
+    if (!r?.ok) { showToast(r?.error || 'Error eliminando proyecto', 'error'); return; }
   } catch (e) {
-    saveProjects(previousProjects);
-    renderAll();
     showToast('Error de conexión', 'error');
     return;
   }
@@ -1363,9 +1347,11 @@ function closeModal(id) {
 // Cerrar con Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['taskModal', 'projectModal', 'detailModal'].forEach(id =>
-      document.getElementById(id).classList.add('hidden')
-    );
+    closeAllModalDropdowns();
+    ['taskModal', 'projectModal', 'detailModal', 'usuarioModal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
   }
 });
 
@@ -1382,19 +1368,10 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 // =============================================================
 
 window.addEventListener('DOMContentLoaded', async () => {
-  const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 horas en ms
   const saved = localStorage.getItem('ce_session');
   if (saved) {
     try {
-      const parsed = JSON.parse(saved);
-      // Compatibilidad con sesiones guardadas en formato antiguo (sin savedAt)
-      const savedAt = parsed.savedAt || 0;
-      if (Date.now() - savedAt > SESSION_TTL) {
-        localStorage.removeItem('ce_session');
-        document.getElementById('loginScreen').classList.remove('hidden');
-        return;
-      }
-      currentUser = parsed.user || parsed;
+      currentUser = JSON.parse(saved);
     } catch (e) {
       localStorage.removeItem('ce_session');
       document.getElementById('loginScreen').classList.remove('hidden');
@@ -1412,6 +1389,396 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('loginScreen').classList.remove('hidden');
   }
 });
+
+
+// =============================================================
+//  GESTIÓN DE USUARIOS (solo Editores)
+// =============================================================
+
+// Estado local de usuarios completos (solo cargado cuando el Editor entra a la vista)
+let _usuariosCompletos = [];
+let _rolesDisponibles  = [];
+let _carrerasDisponibles = [];
+let _editingUserId     = null;
+let _savingUsuario     = false;
+
+/**
+ * Carga usuarios completos desde el backend y renderiza la tabla.
+ * Solo funciona si currentUser.rol === 'Editor'.
+ */
+async function renderUsuarios() {
+  if (currentUser?.rol !== 'Editor') return;
+
+  const container = document.getElementById('usuariosContent');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="usuarios-loading">
+      <div class="loading-spinner" style="width:28px;height:28px;border-width:3px"></div>
+      <span>Cargando usuarios...</span>
+    </div>
+  `;
+
+  try {
+    const res = await api('getUsuariosCompletos', {
+      solicitanteUsuario: currentUser.usuario
+    });
+
+    if (!res.ok) {
+      container.innerHTML = `<div class="empty"><div class="empty-icon">✕</div>${esc(res.error || 'Error cargando usuarios')}</div>`;
+      return;
+    }
+
+    _usuariosCompletos   = res.usuarios || [];
+    _rolesDisponibles    = res.roles    || ['Editor', 'Lector'];
+    _carrerasDisponibles = res.carreras || [];
+
+    renderTablaUsuarios();
+
+  } catch (e) {
+    container.innerHTML = `<div class="empty"><div class="empty-icon">✕</div>Error de conexión</div>`;
+  }
+}
+
+/** Renderiza la tabla de usuarios dentro de #usuariosContent. */
+function renderTablaUsuarios() {
+  const container = document.getElementById('usuariosContent');
+  if (!container) return;
+
+  const activos   = _usuariosCompletos.filter(u => u.activo !== false).length;
+  const inactivos = _usuariosCompletos.length - activos;
+
+  const filas = _usuariosCompletos.map(u => {
+    const esSelf    = u.usuario.toLowerCase() === currentUser.usuario.toLowerCase();
+    const esActivo  = u.activo !== false;
+
+    const fechaMod = u.ultima_modificacion
+      ? `<span style="font-size:11px;color:var(--text4);font-family:var(--mono)">${esc(u.ultima_modificacion.slice(0,10))}</span><br><span style="font-size:10px;color:var(--text4);font-family:var(--mono)">${esc(u.modificado_por || '')}</span>`
+      : '<span style="color:var(--text4);font-size:11px">—</span>';
+
+    const estadoBadge = esActivo
+      ? ''
+      : '<span class="usuarios-inactivo-badge">inactivo</span>';
+
+    // Botón toggle: desactivar si activo, reactivar si inactivo.
+    // El usuario no puede desactivarse a sí mismo.
+    const btnToggle = esSelf
+      ? ''
+      : esActivo
+        ? `<button class="btn usuarios-toggle-btn usuarios-toggle-btn--desactivar" onclick="toggleUsuario('${esc(u.id_usuario)}', false)">Desactivar</button>`
+        : `<button class="btn usuarios-toggle-btn usuarios-toggle-btn--reactivar" onclick="toggleUsuario('${esc(u.id_usuario)}', true)">Reactivar</button>`;
+
+    return `
+      <tr class="${esActivo ? '' : 'usuarios-row-inactiva'}">
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text4)">${esc(u.id_usuario)}</td>
+        <td style="font-weight:600;color:${esActivo ? 'var(--text)' : 'var(--text4)'}">
+          ${esc(u.nombre_apellido)}
+          ${esSelf ? '<span class="usuarios-self-badge">vos</span>' : ''}
+          ${estadoBadge}
+        </td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--text${esActivo ? '2' : '4'})">${esc(u.usuario)}</td>
+        <td><span class="usuarios-rol-badge rol-${(u.rol||'').toLowerCase()}${esActivo ? '' : ' rol-inactivo'}">${esc(u.rol)}</span></td>
+        <td style="font-size:12px;color:var(--text${esActivo ? '2' : '4'})">${esc(u.carrera)}</td>
+        <td>${fechaMod}</td>
+        <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <button class="btn usuarios-edit-btn" onclick="openUsuarioModal('${esc(u.id_usuario)}')">Editar</button>
+          ${btnToggle}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const resumen = inactivos > 0
+    ? `${activos} activo${activos !== 1 ? 's' : ''} · <span style="color:var(--text4)">${inactivos} inactivo${inactivos !== 1 ? 's' : ''}</span>`
+    : `${activos} usuario${activos !== 1 ? 's' : ''} registrados`;
+
+  container.innerHTML = `
+    <div class="usuarios-toolbar">
+      <div style="font-size:13px;color:var(--text2)">${resumen}</div>
+      <button class="btn btn-primary" onclick="openUsuarioModal(null)">+ Nuevo usuario</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre y apellido</th>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Carrera</th>
+            <th>Última modificación</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+/** Abre el modal de usuario para crear (id=null) o editar. */
+function openUsuarioModal(id) {
+  if (currentUser?.rol !== 'Editor') return;
+
+  _editingUserId = id || null;
+  const esNuevo  = !id;
+  const u        = esNuevo ? null : _usuariosCompletos.find(x => x.id_usuario === id);
+
+  document.getElementById('usuarioModalTitle').textContent = esNuevo ? 'Nuevo usuario' : 'Editar usuario';
+
+  // Limpiar campos de texto
+  document.getElementById('uNombreApellido').value = u ? u.nombre_apellido : '';
+  document.getElementById('uUsuario').value        = u ? u.usuario         : '';
+  document.getElementById('uContrasena').value     = '';
+
+  // Poblar hidden selects (los lee saveUsuario)
+  const rolSelect  = document.getElementById('uRol');
+  const carrSelect = document.getElementById('uCarrera');
+
+  rolSelect.innerHTML = _rolesDisponibles.map(r =>
+    `<option value="${esc(r)}">${esc(r)}</option>`
+  ).join('');
+  carrSelect.innerHTML = _carrerasDisponibles.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`
+  ).join('');
+
+  // Setear valor inicial en hidden select y sincronizar el custom dropdown
+  const rolInicial     = (u ? u.rol     : _rolesDisponibles[0])    || '';
+  const carreraInicial = (u ? u.carrera : _carrerasDisponibles[0]) || '';
+
+  setModalDropdown('uRol',     rolInicial);
+  setModalDropdown('uCarrera', carreraInicial);
+
+  // Bloquear rol si el usuario se está editando a sí mismo
+  const esSelf = u && u.usuario.toLowerCase() === currentUser.usuario.toLowerCase();
+  document.getElementById('uRolWrap').style.opacity      = esSelf ? '0.5' : '';
+  document.getElementById('uRolWrap').style.pointerEvents = esSelf ? 'none' : '';
+  document.getElementById('uRolSelfWarning').style.display = esSelf ? '' : 'none';
+
+  // Auto-generar credenciales solo en creación
+  document.getElementById('uNombreApellido').oninput = esNuevo ? autocompletarCredenciales : null;
+
+  // Placeholder de contraseña
+  document.getElementById('uContrasena').placeholder = esNuevo
+    ? 'Se genera automáticamente'
+    : 'Dejá vacío para no cambiarla';
+
+  // Cerrar cualquier panel abierto del modal
+  closeAllModalDropdowns();
+
+  document.getElementById('usuarioModal').classList.remove('hidden');
+}
+
+// =============================================================
+//  CUSTOM DROPDOWNS DEL MODAL DE USUARIO
+//  Sistema independiente del flt-* del topbar para no interferir.
+// =============================================================
+
+let _openModalDropdown = null;
+
+/**
+ * Construye y abre/cierra el panel de un dropdown del modal.
+ * fieldId: 'uRol' | 'uCarrera'
+ */
+function toggleModalDropdown(fieldId) {
+  if (_openModalDropdown && _openModalDropdown !== fieldId) {
+    closeModalDropdown(_openModalDropdown);
+  }
+  _openModalDropdown === fieldId
+    ? closeModalDropdown(fieldId)
+    : openModalDropdown(fieldId);
+}
+
+function openModalDropdown(fieldId) {
+  const select  = document.getElementById(fieldId);
+  const trigger = document.getElementById(fieldId + 'Trigger');
+  const panel   = document.getElementById(fieldId + 'Panel');
+  if (!select || !trigger || !panel) return;
+
+  const options = Array.from(select.options).map(o => ({ value: o.value, label: o.textContent }));
+  const current = select.value;
+
+  panel.innerHTML = options.map(o => `
+    <div class="flt-option ${o.value === current ? 'selected' : ''}"
+         data-modal-flt="${fieldId}"
+         data-value="${esc(o.value)}">
+      <span class="flt-option-check">✓</span>
+      ${esc(o.label)}
+    </div>
+  `).join('');
+
+  trigger.classList.add('open');
+  panel.classList.add('open');
+  _openModalDropdown = fieldId;
+}
+
+function closeModalDropdown(fieldId) {
+  document.getElementById(fieldId + 'Trigger')?.classList.remove('open');
+  document.getElementById(fieldId + 'Panel')?.classList.remove('open');
+  if (_openModalDropdown === fieldId) _openModalDropdown = null;
+}
+
+function closeAllModalDropdowns() {
+  ['uRol', 'uCarrera'].forEach(closeModalDropdown);
+}
+
+/**
+ * Setea el valor del hidden select y actualiza el label del trigger.
+ */
+function setModalDropdown(fieldId, value) {
+  const select  = document.getElementById(fieldId);
+  const label   = document.getElementById(fieldId + 'Label');
+  if (!select || !label) return;
+
+  select.value = value;
+
+  const opt = Array.from(select.options).find(o => o.value === value);
+  if (opt) {
+    label.textContent = opt.textContent;
+    label.classList.remove('placeholder');
+  } else {
+    label.textContent = '— Seleccionar —';
+    label.classList.add('placeholder');
+  }
+}
+
+// Click en opciones del modal (delegado en document)
+document.addEventListener('click', e => {
+  const opt = e.target.closest('[data-modal-flt]');
+  if (opt) {
+    const fieldId = opt.dataset.modalFlt;
+    const value   = opt.dataset.value;
+    setModalDropdown(fieldId, value);
+    closeModalDropdown(fieldId);
+    return;
+  }
+
+  // Click fuera de un dropdown del modal → cierra
+  if (!e.target.closest('.flt-wrap--form')) {
+    closeAllModalDropdowns();
+  }
+});
+
+/** Auto-completa usuario y contraseña a partir del nombre ingresado. */
+function autocompletarCredenciales() {
+  const nombre = document.getElementById('uNombreApellido').value.trim();
+  if (!nombre) return;
+
+  const partes    = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/);
+  const primerNom = (partes[0] || '').slice(0, 4);
+  const apellido  = (partes[partes.length > 1 ? partes.length - 1 : 0] || '').slice(0, 3);
+
+  const usuarioGen    = `${primerNom}_${apellido}`;
+  const contrasenaGen = `2026-${apellido}`;
+
+  document.getElementById('uUsuario').value   = usuarioGen;
+  document.getElementById('uContrasena').value = contrasenaGen;
+}
+
+/** Guarda el usuario (nuevo o editado). */
+async function saveUsuario() {
+  if (_savingUsuario) return;
+  if (currentUser?.rol !== 'Editor') return;
+
+  const nombreApellido = document.getElementById('uNombreApellido').value.trim();
+  const usuario        = document.getElementById('uUsuario').value.trim();
+  const contrasena     = document.getElementById('uContrasena').value.trim();
+  const rol            = document.getElementById('uRol').value;
+  const carrera        = document.getElementById('uCarrera').value;
+  const esNuevo        = !_editingUserId;
+
+  // Validaciones de frontend
+  if (!nombreApellido) { showToast('El nombre y apellido son obligatorios', 'error'); return; }
+  if (!usuario)        { showToast('El usuario es obligatorio', 'error'); return; }
+  if (esNuevo && !contrasena) { showToast('La contraseña es obligatoria', 'error'); return; }
+  if (!rol)            { showToast('El rol es obligatorio', 'error'); return; }
+  if (!carrera)        { showToast('La carrera es obligatoria', 'error'); return; }
+
+  // Protección de auto-cambio de rol (doble chequeo en frontend)
+  const usuarioActual = _usuariosCompletos.find(x => x.id_usuario === _editingUserId);
+  if (usuarioActual &&
+      usuarioActual.usuario.toLowerCase() === currentUser.usuario.toLowerCase() &&
+      usuarioActual.rol !== rol) {
+    showToast('No podés cambiar tu propio rol', 'error');
+    return;
+  }
+
+  _savingUsuario = true;
+  const btn = document.querySelector('#usuarioModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    const payload = {
+      id_usuario:      _editingUserId || null,
+      nombre_apellido: nombreApellido,
+      usuario,
+      contrasena:      contrasena,  // string vacío → backend mantiene la existente
+      rol,
+      carrera,
+    };
+
+    const res = await api('saveUsuario', {
+      solicitanteUsuario: currentUser.usuario,
+      usuario: payload,
+    });
+
+    if (!res.ok) {
+      showToast(res.error || 'Error guardando usuario', 'error');
+      return;
+    }
+
+    showToast(esNuevo ? 'Usuario creado correctamente' : 'Usuario actualizado');
+    closeModal('usuarioModal');
+
+    // Recargar la lista
+    await renderUsuarios();
+
+  } catch (e) {
+    showToast('Error de conexión', 'error');
+  } finally {
+    _savingUsuario = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar usuario'; }
+  }
+}
+
+
+/** Activa o desactiva un usuario (borrado lógico). */
+async function toggleUsuario(id, activar) {
+  if (currentUser?.rol !== 'Editor') return;
+
+  const u = _usuariosCompletos.find(x => x.id_usuario === id);
+  if (!u) return;
+
+  const accion  = activar ? 'reactivar' : 'desactivar';
+  const confirm_msg = activar
+    ? `¿Reactivar a ${u.nombre_apellido}? Podrá volver a iniciar sesión.`
+    : `¿Desactivar a ${u.nombre_apellido}? No podrá iniciar sesión hasta que se reactive.`;
+
+  if (!confirm(confirm_msg)) return;
+
+  try {
+    const res = await api('toggleUsuario', {
+      solicitanteUsuario: currentUser.usuario,
+      id_usuario:         id,
+    });
+
+    if (!res.ok) {
+      showToast(res.error || `Error al ${accion} usuario`, 'error');
+      return;
+    }
+
+    showToast(activar ? `${u.nombre_apellido} reactivado` : `${u.nombre_apellido} desactivado`);
+
+    // Actualizar en memoria sin recargar todo
+    const idx = _usuariosCompletos.findIndex(x => x.id_usuario === id);
+    if (idx !== -1) _usuariosCompletos[idx].activo = res.activo;
+
+    renderTablaUsuarios();
+
+  } catch (e) {
+    showToast('Error de conexión', 'error');
+  }
+}
 
 
 // =============================================================

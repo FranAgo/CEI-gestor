@@ -209,7 +209,14 @@ body {
   border-left-color: var(--green-400);
 }
 
-.nav-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+.nav-icon {
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
 
 .nav-count {
   margin-left: auto;
@@ -412,16 +419,38 @@ body {
   color: var(--text);
   font-family: var(--sans);
   font-size: 13px;
-  padding: 7px 12px;
+  padding: 7px 12px 7px 34px;
   outline: none;
   transition: border-color var(--t-fast) var(--ease-out),
               box-shadow var(--t-fast) var(--ease-out);
   min-width: 170px;
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
-.filter-input:focus { border-color: var(--accent); }
+.filter-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(90,154,50,0.12); }
 .filter-input::placeholder { color: var(--text4); }
+
+.search-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.search-icon {
+  position: absolute;
+  left: 11px;
+  color: var(--text4);
+  pointer-events: none;
+  flex-shrink: 0;
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.search-wrap:focus-within .search-icon {
+  color: var(--accent);
+}
 
 /* ============================================================
    STATS ROW — Punto 3
@@ -465,14 +494,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
   flex-shrink: 0;
   position: static;
   transform: none;
   opacity: 1;
+  color: var(--accent-dark);
 }
 
-.stat-card.highlight .stat-icon { background: rgba(90,154,50,0.25); }
+.stat-card.highlight .stat-icon {
+  background: rgba(90,154,50,0.25);
+  color: var(--accent);
+}
 
 .stat-card-body { display: flex; flex-direction: column; gap: 2px; }
 
@@ -1291,6 +1323,69 @@ td.task-name-cell:hover { color: var(--accent); }
 .flt-option.selected .flt-option-check { opacity: 1; }
 
 /* ============================================================
+   CUSTOM DROPDOWN — VARIANTE FORMULARIO (modal de usuario)
+   Extiende el sistema flt-* con ajustes de tamaño y contexto.
+   ============================================================ */
+
+/* El wrap ocupa el ancho completo del form-group */
+.flt-wrap--form {
+  display: flex;
+  width: 100%;
+}
+
+/* Trigger de formulario: ancho completo, altura y padding de input */
+.flt-trigger--form {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 13px;
+  font-size: 13.5px;
+  background: var(--bg);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.flt-trigger--form:hover {
+  border-color: var(--border2);
+  background: var(--bg);
+}
+
+.flt-trigger--form.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(90,154,50,0.12);
+  background: var(--bg);
+}
+
+/* Texto placeholder cuando no hay selección */
+.flt-trigger--form .flt-trigger-text.placeholder {
+  color: var(--text4);
+}
+
+/* Panel: ancho mínimo igual al trigger, scroll si hay muchas opciones */
+.flt-panel--form {
+  left: 0;
+  right: 0;
+  min-width: 100%;
+  max-height: 220px;
+  z-index: 200;
+  border-radius: var(--radius);
+
+  /* Desplegar hacia arriba */
+  top: auto;
+  bottom: calc(100% + 6px);
+
+  /* Scrollbar contenida dentro del borde redondeado */
+  overflow: hidden auto;
+
+  /* Animación desde abajo hacia arriba */
+  transform-origin: bottom center;
+}
+
+.flt-panel--form .flt-option {
+  font-size: 13.5px;
+  padding: 9px 14px;
+}
+
+/* ============================================================
    SCROLLBAR
    ============================================================ */
 
@@ -1453,6 +1548,11 @@ td.task-name-cell:hover { color: var(--accent); }
     flex: 1 1 calc(50% - 4px);
   }
 
+  .search-wrap {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
   /* Custom dropdowns: igual comportamiento que filter-input nativo */
   .flt-wrap {
     flex: 1 1 calc(50% - 4px);
@@ -1492,6 +1592,7 @@ td.task-name-cell:hover { color: var(--accent); }
 
   /* Filtros: una columna en móvil pequeño */
   .filter-input { flex: 1 1 100%; }
+  .search-wrap  { flex: 1 1 100%; min-width: 0; }
 
   /* Custom dropdowns: ancho completo en mobile chico */
   .flt-wrap    { flex: 1 1 100%; min-width: 0; }
@@ -1509,4 +1610,130 @@ td.task-name-cell:hover { color: var(--accent); }
     padding: 7px 11px;
     font-size: 12.5px;
   }
+}
+
+/* ============================================================
+   GESTIÓN DE USUARIOS
+   ============================================================ */
+
+.usuarios-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: var(--text3);
+  font-size: 13px;
+  font-family: var(--mono);
+}
+
+.usuarios-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Badge "vos" para identificar al usuario activo */
+.usuarios-self-badge {
+  display: inline-block;
+  font-size: 9.5px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--accent-bg2);
+  color: var(--accent-dark);
+  border: 1px solid var(--border2);
+  font-family: var(--mono);
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Badges de rol */
+.usuarios-rol-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rol-editor {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(217,79,79,0.22);
+}
+
+.rol-lector {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border: 1px solid rgba(42,125,217,0.22);
+}
+
+/* Botón editar dentro de la tabla */
+.usuarios-edit-btn {
+  font-size: 11.5px;
+  padding: 4px 12px;
+  color: var(--accent-dark);
+  border-color: var(--border2);
+}
+
+.usuarios-edit-btn:hover {
+  background: var(--accent-bg2);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+/* Fila de usuario inactivo */
+.usuarios-row-inactiva td {
+  opacity: 0.5;
+}
+
+/* Badge de inactivo */
+.usuarios-inactivo-badge {
+  display: inline-block;
+  font-size: 9.5px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(217,79,79,0.22);
+  font-family: var(--mono);
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Badge de rol en estado inactivo */
+.rol-inactivo {
+  opacity: 0.45;
+}
+
+/* Botones de toggle desactivar / reactivar */
+.usuarios-toggle-btn {
+  font-size: 11.5px;
+  padding: 4px 12px;
+}
+
+.usuarios-toggle-btn--desactivar {
+  color: var(--red);
+  border-color: rgba(217,79,79,0.3);
+}
+
+.usuarios-toggle-btn--desactivar:hover {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+
+.usuarios-toggle-btn--reactivar {
+  color: var(--accent-dark);
+  border-color: var(--border2);
+}
+
+.usuarios-toggle-btn--reactivar:hover {
+  background: var(--accent-bg2);
+  border-color: var(--accent);
 }

@@ -57,20 +57,49 @@
     <div class="nav-section">
       <div class="nav-label">Vistas</div>
       <div class="nav-item nav-item-view active" onclick="switchView('board',this)">
-        <span class="nav-icon">⬚</span> Tablero Kanban
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="11" rx="1"/>
+          </svg>
+        </span> Tablero Kanban
         <span class="nav-count" id="cnt-board">0</span>
       </div>
       <div class="nav-item nav-item-view" onclick="switchView('list',this)">
-        <span class="nav-icon">≡</span> Lista de tareas
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </span> Lista de tareas
         <span class="nav-count" id="cnt-list">0</span>
       </div>
       <div class="nav-item nav-item-view" onclick="switchView('projects',this)">
-        <span class="nav-icon">◈</span> Proyectos
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/>
+          </svg>
+        </span> Proyectos
         <span class="nav-count" id="cnt-projects">0</span>
       </div>
       <div class="nav-item nav-item-view" onclick="switchView('trabados',this)">
-        <span class="nav-icon" style="color:#d94f4f">⏸</span> Proyectos trabados
+        <span class="nav-icon" style="color:#d94f4f">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/>
+          </svg>
+        </span> Proyectos trabados
         <span class="nav-count" id="cnt-trabados" style="background:rgba(217,79,79,0.15);color:#d94f4f">0</span>
+      </div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section" id="navUsuarios" style="display:none">
+      <div class="nav-label">Administración</div>
+      <div class="nav-item nav-item-view" onclick="switchView('usuarios',this)">
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </span> Usuarios
       </div>
     </div>
     <div class="nav-divider"></div>
@@ -117,7 +146,12 @@
       </div>
     </div>
     <div class="filters-bar" id="filtersBar">
-      <input class="filter-input" type="text" id="searchInput" placeholder="🔍  Buscar tareas..." oninput="renderAll()" style="min-width:200px;">
+      <div class="search-wrap">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="filter-input" type="text" id="searchInput" placeholder="Buscar tareas..." oninput="renderAll()" style="min-width:200px;">
+      </div>
 
       <!-- Select oculto — app.js lo lee igual que antes -->
       <select id="filterProject"  style="display:none" onchange="renderAll()"><option value="">Todos los proyectos</option></select>
@@ -160,21 +194,21 @@
     </div>
     <div class="stats-row" id="statsRow" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card highlight">
-        <div class="stat-icon">⚡</div>
+        <div class="stat-icon"></div>
         <div class="stat-card-body">
           <div class="stat-label">Tareas activas</div>
           <div class="stat-value" id="statActivas">0</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">✓</div>
+        <div class="stat-icon"></div>
         <div class="stat-card-body">
           <div class="stat-label">Completadas</div>
           <div class="stat-value" id="statCompletadas">0</div>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">◈</div>
+        <div class="stat-icon"></div>
         <div class="stat-card-body">
           <div class="stat-label">Proyectos activos</div>
           <div class="stat-value" id="statProyectos">0</div>
@@ -186,6 +220,7 @@
       <div id="viewList" class="hidden"><div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Proyecto</th><th>Estado</th><th>Prioridad</th><th>Responsable</th><th>Vencimiento</th><th>Creación</th></tr></thead><tbody id="listBody"></tbody></table></div></div>
       <div id="viewProjects" class="hidden"><div class="projects-grid" id="projectsGrid"></div></div>
       <div id="viewTrabados" class="hidden"><div id="trabadosContent"></div></div>
+      <div id="viewUsuarios" class="hidden"><div id="usuariosContent"></div></div>
     </div>
   </main>
 </div>
@@ -253,6 +288,62 @@
     <div class="modal-header"><span class="modal-title">Detalle de tarea</span><button class="modal-close" onclick="closeModal('detailModal')">✕</button></div>
     <div id="detailContent"></div>
     <div class="modal-footer" id="detailFooter"></div>
+  </div>
+</div>
+
+<!-- MODAL USUARIO -->
+<div class="modal-overlay hidden" id="usuarioModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="modal-title" id="usuarioModalTitle">Nuevo usuario</span>
+      <button class="modal-close" onclick="closeModal('usuarioModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nombre y apellido <span style="color:var(--red)">*</span></label>
+        <input class="input" id="uNombreApellido" placeholder="Ej: María González" autocomplete="off">
+        <div style="font-size:11px;color:var(--text4);margin-top:2px">Al escribirlo, usuario y contraseña se completan automáticamente.</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Usuario <span style="color:var(--red)">*</span></label>
+          <input class="input" id="uUsuario" placeholder="mari_gon" autocomplete="off" style="font-family:var(--mono)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña <span style="color:var(--red)" id="uContrasenaReq">*</span></label>
+          <input class="input" id="uContrasena" type="text" placeholder="Se genera automáticamente" autocomplete="new-password" style="font-family:var(--mono)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Rol <span style="color:var(--red)">*</span></label>
+          <select id="uRol" style="display:none"></select>
+          <div class="flt-wrap flt-wrap--form" id="uRolWrap" style="width:100%">
+            <div class="flt-trigger flt-trigger--form" id="uRolTrigger" onclick="toggleModalDropdown('uRol')">
+              <span class="flt-trigger-text" id="uRolLabel">— Seleccionar —</span>
+              <span class="flt-chevron">▾</span>
+            </div>
+            <div class="flt-panel flt-panel--form" id="uRolPanel"></div>
+          </div>
+          <div id="uRolSelfWarning" style="display:none;font-size:11px;color:var(--orange);margin-top:4px">⚠ No podés cambiar tu propio rol.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Carrera <span style="color:var(--red)">*</span></label>
+          <select id="uCarrera" style="display:none"></select>
+          <div class="flt-wrap flt-wrap--form" id="uCarreraWrap" style="width:100%">
+            <div class="flt-trigger flt-trigger--form" id="uCarreraTrigger" onclick="toggleModalDropdown('uCarrera')">
+              <span class="flt-trigger-text" id="uCarreraLabel">— Seleccionar —</span>
+              <span class="flt-chevron">▾</span>
+            </div>
+            <div class="flt-panel flt-panel--form" id="uCarreraPanel"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('usuarioModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUsuario()">Guardar usuario</button>
+    </div>
   </div>
 </div>
 
